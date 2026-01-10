@@ -1,0 +1,44 @@
+rules_version = '2';
+service firebase.storage {
+  match /b/{bucket}/o {
+    // Helper function to check if user is authenticated
+    function isAuthenticated() {
+      return request.auth != null;
+    }
+
+    // Helper function to check if user has a specific role
+    function hasRole(role) {
+      return isAuthenticated() &&
+             firestore.get(/databases/(default)/documents/users/$(request.auth.uid)).data.role == role;
+    }
+
+    // Helper function to check if file is an allowed document type
+    function isAllowedFileType() {
+      return request.resource.contentType.matches('image/.*') ||
+             request.resource.contentType == 'application/pdf';
+    }
+
+    // Helper function to check if file size is within limit (10MB)
+    function isWithinSizeLimit() {
+      return request.resource.size < 10 * 1024 * 1024;
+    }
+
+    // Documents storage
+    match /documents/{userId}/{document} {
+      // Users can read their own documents, admins and managers can read all
+      allow read: if isAuthenticated() &&
+                     (request.auth.uid == userId ||
+                      hasRole('Administrator') ||
+                      hasRole('Manager'));
+
+      // Users can write their own documents
+      allow write: if isAuthenticated() &&
+                      request.auth.uid == userId &&
+                      isAllowedFileType() &&
+                      isWithinSizeLimit();
+
+      // Admins can delete any document
+      allow delete: if hasRole('Administrator');
+    }
+  }
+}
