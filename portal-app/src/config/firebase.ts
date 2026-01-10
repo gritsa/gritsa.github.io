@@ -4,13 +4,13 @@ import { getFirestore } from 'firebase/firestore';
 import { getStorage } from 'firebase/storage';
 
 const firebaseConfig = {
-  apiKey: "AIzaSyDIRnmhrFvkjGCMpUTPh2v1-QsZMJye3Ng",
-  authDomain: "gritsa-portal.firebaseapp.com",
-  projectId: "gritsa-portal",
-  storageBucket: "gritsa-portal.firebasestorage.app",
-  messagingSenderId: "437832689618",
-  appId: "1:437832689618:web:b56404dc5dde0a385b0a0b",
-  measurementId: "G-MVD7JM203Y"
+  apiKey: "AIzaSyDySLIP1DWieyUMaWj6gb8Be8ddsRMks5E",
+  authDomain: "gritsa-portal-d9b35.firebaseapp.com",
+  projectId: "gritsa-portal-d9b35",
+  storageBucket: "gritsa-portal-d9b35.firebasestorage.app",
+  messagingSenderId: "115612748070",
+  appId: "1:115612748070:web:cf154ce5b4cab6e54b99e7",
+  measurementId: "G-9T4F9YD6V9"
 };
 
 const app = initializeApp(firebaseConfig);
