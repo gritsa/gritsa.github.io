@@ -12,9 +12,22 @@ import {
   Badge,
   Select,
 } from '@chakra-ui/react';
-import { collection, getDocs, query, where } from 'firebase/firestore';
-import { db } from '../../config/firebase';
-import { Timesheet, User } from '../../types';
+import { supabase } from '../../config/supabase';
+
+interface Timesheet {
+  id: string;
+  employee_id: string;
+  month: number;
+  year: number;
+  days: Record<number, any>;
+  status: 'Draft' | 'Submitted';
+}
+
+interface User {
+  id: string;
+  email: string;
+  display_name?: string;
+}
 
 const TimesheetReview: React.FC = () => {
   const [timesheets, setTimesheets] = useState<Timesheet[]>([]);
@@ -28,26 +41,35 @@ const TimesheetReview: React.FC = () => {
 
   const fetchData = async () => {
     try {
-      const usersSnapshot = await getDocs(collection(db, 'users'));
-      const usersData = usersSnapshot.docs.map((doc) => doc.data() as User);
-      setUsers(usersData);
+      const { data: usersData, error: usersError } = await supabase
+        .from('users')
+        .select('id, email, display_name');
 
-      const timesheetsQuery = query(
-        collection(db, 'timesheets'),
-        where('month', '==', selectedMonth),
-        where('year', '==', selectedYear)
-      );
-      const timesheetsSnapshot = await getDocs(timesheetsQuery);
-      const timesheetsData = timesheetsSnapshot.docs.map((doc) => doc.data() as Timesheet);
-      setTimesheets(timesheetsData);
+      if (usersError) throw usersError;
+
+      if (usersData) {
+        setUsers(usersData);
+      }
+
+      const { data: timesheetsData, error: timesheetsError } = await supabase
+        .from('timesheets')
+        .select('*')
+        .eq('month', selectedMonth)
+        .eq('year', selectedYear);
+
+      if (timesheetsError) throw timesheetsError;
+
+      if (timesheetsData) {
+        setTimesheets(timesheetsData);
+      }
     } catch (error) {
       console.error('Error fetching data:', error);
     }
   };
 
   const getUserName = (uid: string) => {
-    const user = users.find((u) => u.uid === uid);
-    return user?.displayName || user?.email || uid;
+    const user = users.find((u) => u.id === uid);
+    return user?.display_name || user?.email || uid;
   };
 
   const months = [
@@ -100,7 +122,7 @@ const TimesheetReview: React.FC = () => {
             <Tbody>
               {timesheets.map((timesheet) => (
                 <Tr key={timesheet.id}>
-                  <Td>{getUserName(timesheet.employeeId)}</Td>
+                  <Td>{getUserName(timesheet.employee_id)}</Td>
                   <Td>{months[timesheet.month]}</Td>
                   <Td>{timesheet.year}</Td>
                   <Td>

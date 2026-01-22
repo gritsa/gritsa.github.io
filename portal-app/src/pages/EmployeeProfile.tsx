@@ -24,15 +24,25 @@ import {
 } from '@chakra-ui/react';
 import { Layout } from '../components/Layout';
 import { useAuth } from '../contexts/AuthContext';
-import { doc, getDoc, setDoc, serverTimestamp } from 'firebase/firestore';
-import { ref, uploadBytes, getDownloadURL } from 'firebase/storage';
-import { db, storage } from '../config/firebase';
-import { EmployeeProfile as EmployeeProfileType } from '../types';
+import { supabase } from '../config/supabase';
 import { ExternalLinkIcon } from '@chakra-ui/icons';
+
+interface EmployeeProfileData {
+  user_id: string;
+  full_name: string;
+  date_of_birth?: string;
+  phone: string;
+  alternate_contact?: string;
+  emergency_contact_name: string;
+  emergency_contact_phone: string;
+  emergency_contact_relationship: string;
+  pan_card_url?: string;
+  aadhaar_card_url?: string;
+}
 
 const EmployeeProfile: React.FC = () => {
   const { currentUser } = useAuth();
-  const [profile, setProfile] = useState<EmployeeProfileType | null>(null);
+  const [profile, setProfile] = useState<EmployeeProfileData | null>(null);
   const [loading, setLoading] = useState(true);
   const [editLoading, setEditLoading] = useState(false);
   const { isOpen, onOpen, onClose } = useDisclosure();
@@ -61,20 +71,24 @@ const EmployeeProfile: React.FC = () => {
     if (!currentUser) return;
 
     try {
-      const profileDoc = await getDoc(doc(db, 'employeeProfiles', currentUser.uid));
-      if (profileDoc.exists()) {
-        const data = profileDoc.data() as EmployeeProfileType;
+      const { data, error } = await supabase
+        .from('employee_profiles')
+        .select('*')
+        .eq('user_id', currentUser.id)
+        .single();
+
+      if (error) throw error;
+
+      if (data) {
         setProfile(data);
         setFormData({
-          fullName: data.personalDetails.fullName,
-          dateOfBirth: data.personalDetails.dateOfBirth
-            ? new Date(data.personalDetails.dateOfBirth).toISOString().split('T')[0]
-            : '',
-          phone: data.personalDetails.phone,
-          alternateContact: data.personalDetails.alternateContact || '',
-          emergencyContactName: data.personalDetails.emergencyContact.name,
-          emergencyContactPhone: data.personalDetails.emergencyContact.phone,
-          emergencyContactRelationship: data.personalDetails.emergencyContact.relationship,
+          fullName: data.full_name,
+          dateOfBirth: data.date_of_birth || '',
+          phone: data.phone,
+          alternateContact: data.alternate_contact || '',
+          emergencyContactName: data.emergency_contact_name,
+          emergencyContactPhone: data.emergency_contact_phone,
+          emergencyContactRelationship: data.emergency_contact_relationship,
         });
       }
     } catch (error) {
@@ -101,9 +115,19 @@ const EmployeeProfile: React.FC = () => {
   };
 
   const uploadFile = async (file: File, path: string): Promise<string> => {
-    const storageRef = ref(storage, path);
-    await uploadBytes(storageRef, file);
-    return await getDownloadURL(storageRef);
+    const { data, error } = await supabase.storage
+      .from('documents')
+      .upload(path, file, {
+        upsert: true,
+      });
+
+    if (error) throw error;
+
+    const { data: urlData } = supabase.storage
+      .from('documents')
+      .getPublicUrl(data.path);
+
+    return urlData.publicUrl;
   };
 
   const handleUpdate = async () => {
@@ -112,44 +136,48 @@ const EmployeeProfile: React.FC = () => {
     setEditLoading(true);
 
     try {
-      let panCardUrl = profile?.documents.panCard || '';
-      let aadhaarCardUrl = profile?.documents.aadhaarCard || '';
+      let panCardUrl = profile?.pan_card_url || '';
+      let aadhaarCardUrl = profile?.aadhaar_card_url || '';
 
       if (files.panCard) {
-        panCardUrl = await uploadFile(files.panCard, `documents/${currentUser.uid}/panCard`);
+        panCardUrl = await uploadFile(
+          files.panCard,
+          `${currentUser.id}/panCard.${files.panCard.name.split('.').pop()}`
+        );
       }
 
       if (files.aadhaarCard) {
-        aadhaarCardUrl = await uploadFile(files.aadhaarCard, `documents/${currentUser.uid}/aadhaarCard`);
+        aadhaarCardUrl = await uploadFile(
+          files.aadhaarCard,
+          `${currentUser.id}/aadhaarCard.${files.aadhaarCard.name.split('.').pop()}`
+        );
       }
 
-      const profileData: Partial<EmployeeProfileType> = {
-        uid: currentUser.uid,
-        personalDetails: {
-          fullName: formData.fullName,
-          dateOfBirth: formData.dateOfBirth ? new Date(formData.dateOfBirth) : undefined,
+      const { error: profileError } = await supabase
+        .from('employee_profiles')
+        .upsert({
+          user_id: currentUser.id,
+          full_name: formData.fullName,
+          date_of_birth: formData.dateOfBirth || null,
           phone: formData.phone,
-          alternateContact: formData.alternateContact,
-          emergencyContact: {
-            name: formData.emergencyContactName,
-            phone: formData.emergencyContactPhone,
-            relationship: formData.emergencyContactRelationship,
-          },
-        },
-        documents: {
-          panCard: panCardUrl,
-          aadhaarCard: aadhaarCardUrl,
-        },
-        updatedAt: serverTimestamp() as any,
-      };
+          alternate_contact: formData.alternateContact || null,
+          emergency_contact_name: formData.emergencyContactName,
+          emergency_contact_phone: formData.emergencyContactPhone,
+          emergency_contact_relationship: formData.emergencyContactRelationship,
+          pan_card_url: panCardUrl || null,
+          aadhaar_card_url: aadhaarCardUrl || null,
+        });
 
-      await setDoc(doc(db, 'employeeProfiles', currentUser.uid), profileData, { merge: true });
+      if (profileError) throw profileError;
 
-      await setDoc(
-        doc(db, 'users', currentUser.uid),
-        { displayName: formData.fullName },
-        { merge: true }
-      );
+      const { error: userError } = await supabase
+        .from('users')
+        .update({
+          display_name: formData.fullName,
+        })
+        .eq('id', currentUser.id);
+
+      if (userError) throw userError;
 
       toast({
         title: 'Profile updated successfully',
@@ -195,15 +223,15 @@ const EmployeeProfile: React.FC = () => {
                   <Text fontWeight="bold" fontSize="sm" color="gray.600">
                     Full Name
                   </Text>
-                  <Text>{profile?.personalDetails.fullName}</Text>
+                  <Text>{profile?.full_name}</Text>
                 </Box>
                 <Box>
                   <Text fontWeight="bold" fontSize="sm" color="gray.600">
                     Date of Birth
                   </Text>
                   <Text>
-                    {profile?.personalDetails.dateOfBirth
-                      ? new Date(profile.personalDetails.dateOfBirth).toLocaleDateString()
+                    {profile?.date_of_birth
+                      ? new Date(profile.date_of_birth).toLocaleDateString()
                       : 'Not provided'}
                   </Text>
                 </Box>
@@ -211,13 +239,13 @@ const EmployeeProfile: React.FC = () => {
                   <Text fontWeight="bold" fontSize="sm" color="gray.600">
                     Phone
                   </Text>
-                  <Text>{profile?.personalDetails.phone}</Text>
+                  <Text>{profile?.phone}</Text>
                 </Box>
                 <Box>
                   <Text fontWeight="bold" fontSize="sm" color="gray.600">
                     Alternate Contact
                   </Text>
-                  <Text>{profile?.personalDetails.alternateContact || 'Not provided'}</Text>
+                  <Text>{profile?.alternate_contact || 'Not provided'}</Text>
                 </Box>
               </SimpleGrid>
             </VStack>
@@ -233,19 +261,19 @@ const EmployeeProfile: React.FC = () => {
                   <Text fontWeight="bold" fontSize="sm" color="gray.600">
                     Name
                   </Text>
-                  <Text>{profile?.personalDetails.emergencyContact.name}</Text>
+                  <Text>{profile?.emergency_contact_name}</Text>
                 </Box>
                 <Box>
                   <Text fontWeight="bold" fontSize="sm" color="gray.600">
                     Phone
                   </Text>
-                  <Text>{profile?.personalDetails.emergencyContact.phone}</Text>
+                  <Text>{profile?.emergency_contact_phone}</Text>
                 </Box>
                 <Box>
                   <Text fontWeight="bold" fontSize="sm" color="gray.600">
                     Relationship
                   </Text>
-                  <Text>{profile?.personalDetails.emergencyContact.relationship}</Text>
+                  <Text>{profile?.emergency_contact_relationship}</Text>
                 </Box>
               </SimpleGrid>
             </VStack>
@@ -261,8 +289,8 @@ const EmployeeProfile: React.FC = () => {
                   <Text fontWeight="bold" fontSize="sm" color="gray.600">
                     PAN Card
                   </Text>
-                  {profile?.documents.panCard ? (
-                    <Link href={profile.documents.panCard} isExternal color="blue.500">
+                  {profile?.pan_card_url ? (
+                    <Link href={profile.pan_card_url} isExternal color="blue.500">
                       View Document <ExternalLinkIcon mx="2px" />
                     </Link>
                   ) : (
@@ -273,8 +301,8 @@ const EmployeeProfile: React.FC = () => {
                   <Text fontWeight="bold" fontSize="sm" color="gray.600">
                     Aadhaar Card
                   </Text>
-                  {profile?.documents.aadhaarCard ? (
-                    <Link href={profile.documents.aadhaarCard} isExternal color="blue.500">
+                  {profile?.aadhaar_card_url ? (
+                    <Link href={profile.aadhaar_card_url} isExternal color="blue.500">
                       View Document <ExternalLinkIcon mx="2px" />
                     </Link>
                   ) : (

@@ -24,9 +24,17 @@ import {
   VStack,
   Text,
 } from '@chakra-ui/react';
-import { collection, getDocs, doc, updateDoc, query, where } from 'firebase/firestore';
-import { db } from '../../config/firebase';
-import { User, UserRole } from '../../types';
+import { supabase } from '../../config/supabase';
+import type { UserRole } from '../../types';
+
+interface User {
+  id: string;
+  email: string;
+  role: UserRole;
+  display_name?: string;
+  manager_id?: string;
+  profile_completed: boolean;
+}
 
 const UserManagement: React.FC = () => {
   const [users, setUsers] = useState<User[]>([]);
@@ -44,14 +52,21 @@ const UserManagement: React.FC = () => {
 
   const fetchUsers = async () => {
     try {
-      const usersSnapshot = await getDocs(collection(db, 'users'));
-      const usersData = usersSnapshot.docs.map((doc) => doc.data() as User);
-      setUsers(usersData);
+      const { data, error } = await supabase
+        .from('users')
+        .select('*')
+        .order('email');
 
-      const managerUsers = usersData.filter(
-        (u) => u.role === 'Manager' || u.role === 'Administrator'
-      );
-      setManagers(managerUsers);
+      if (error) throw error;
+
+      if (data) {
+        setUsers(data);
+
+        const managerUsers = data.filter(
+          (u) => u.role === 'Manager' || u.role === 'Administrator'
+        );
+        setManagers(managerUsers);
+      }
     } catch (error) {
       console.error('Error fetching users:', error);
     }
@@ -60,7 +75,7 @@ const UserManagement: React.FC = () => {
   const handleEditUser = (user: User) => {
     setSelectedUser(user);
     setNewRole(user.role);
-    setNewManagerId(user.managerId || '');
+    setNewManagerId(user.manager_id || '');
     onOpen();
   };
 
@@ -70,10 +85,15 @@ const UserManagement: React.FC = () => {
     setLoading(true);
 
     try {
-      await updateDoc(doc(db, 'users', selectedUser.uid), {
-        role: newRole,
-        managerId: newManagerId || null,
-      });
+      const { error } = await supabase
+        .from('users')
+        .update({
+          role: newRole,
+          manager_id: newManagerId || null,
+        })
+        .eq('id', selectedUser.id);
+
+      if (error) throw error;
 
       toast({
         title: 'User updated successfully',
@@ -127,20 +147,20 @@ const UserManagement: React.FC = () => {
             </Thead>
             <Tbody>
               {users.map((user) => (
-                <Tr key={user.uid}>
+                <Tr key={user.id}>
                   <Td>{user.email}</Td>
-                  <Td>{user.displayName || '-'}</Td>
+                  <Td>{user.display_name || '-'}</Td>
                   <Td>
                     <Badge colorScheme={getRoleBadgeColor(user.role)}>{user.role}</Badge>
                   </Td>
                   <Td>
-                    {user.managerId
-                      ? users.find((u) => u.uid === user.managerId)?.email || user.managerId
+                    {user.manager_id
+                      ? users.find((u) => u.id === user.manager_id)?.email || user.manager_id
                       : '-'}
                   </Td>
                   <Td>
-                    <Badge colorScheme={user.profileCompleted ? 'green' : 'orange'}>
-                      {user.profileCompleted ? 'Complete' : 'Incomplete'}
+                    <Badge colorScheme={user.profile_completed ? 'green' : 'orange'}>
+                      {user.profile_completed ? 'Complete' : 'Incomplete'}
                     </Badge>
                   </Td>
                   <Td>
@@ -184,9 +204,9 @@ const UserManagement: React.FC = () => {
                   placeholder="Select manager (optional)"
                 >
                   {managers
-                    .filter((m) => m.uid !== selectedUser?.uid)
+                    .filter((m) => m.id !== selectedUser?.id)
                     .map((manager) => (
-                      <option key={manager.uid} value={manager.uid}>
+                      <option key={manager.id} value={manager.id}>
                         {manager.email} ({manager.role})
                       </option>
                     ))}

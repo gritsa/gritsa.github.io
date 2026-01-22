@@ -1,6 +1,5 @@
 import React, { useState } from 'react';
 import {
-  Box,
   Button,
   FormControl,
   FormLabel,
@@ -16,11 +15,8 @@ import {
   Progress,
 } from '@chakra-ui/react';
 import { useNavigate } from 'react-router-dom';
-import { doc, setDoc, serverTimestamp } from 'firebase/firestore';
-import { ref, uploadBytes, getDownloadURL } from 'firebase/storage';
-import { db, storage } from '../config/firebase';
+import { supabase } from '../config/supabase';
 import { useAuth } from '../contexts/AuthContext';
-import { EmployeeProfile } from '../types';
 
 const CompleteProfile: React.FC = () => {
   const { currentUser, refreshUserData } = useAuth();
@@ -62,9 +58,21 @@ const CompleteProfile: React.FC = () => {
   };
 
   const uploadFile = async (file: File, path: string): Promise<string> => {
-    const storageRef = ref(storage, path);
-    await uploadBytes(storageRef, file);
-    return await getDownloadURL(storageRef);
+    const { data, error } = await supabase.storage
+      .from('documents')
+      .upload(path, file, {
+        upsert: true,
+      });
+
+    if (error) {
+      throw error;
+    }
+
+    const { data: urlData } = supabase.storage
+      .from('documents')
+      .getPublicUrl(data.path);
+
+    return urlData.publicUrl;
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -82,7 +90,7 @@ const CompleteProfile: React.FC = () => {
         setUploadProgress(30);
         panCardUrl = await uploadFile(
           files.panCard,
-          `documents/${currentUser.uid}/panCard`
+          `${currentUser.id}/panCard.${files.panCard.name.split('.').pop()}`
         );
       }
 
@@ -90,39 +98,38 @@ const CompleteProfile: React.FC = () => {
         setUploadProgress(60);
         aadhaarCardUrl = await uploadFile(
           files.aadhaarCard,
-          `documents/${currentUser.uid}/aadhaarCard`
+          `${currentUser.id}/aadhaarCard.${files.aadhaarCard.name.split('.').pop()}`
         );
       }
 
       setUploadProgress(80);
 
-      const profileData: Partial<EmployeeProfile> = {
-        uid: currentUser.uid,
-        personalDetails: {
-          fullName: formData.fullName,
-          dateOfBirth: formData.dateOfBirth ? new Date(formData.dateOfBirth) : undefined,
+      const { error: profileError } = await supabase
+        .from('employee_profiles')
+        .upsert({
+          user_id: currentUser.id,
+          full_name: formData.fullName,
+          date_of_birth: formData.dateOfBirth || null,
           phone: formData.phone,
-          alternateContact: formData.alternateContact,
-          emergencyContact: {
-            name: formData.emergencyContactName,
-            phone: formData.emergencyContactPhone,
-            relationship: formData.emergencyContactRelationship,
-          },
-        },
-        documents: {
-          panCard: panCardUrl,
-          aadhaarCard: aadhaarCardUrl,
-        },
-        updatedAt: serverTimestamp() as any,
-      };
+          alternate_contact: formData.alternateContact || null,
+          emergency_contact_name: formData.emergencyContactName,
+          emergency_contact_phone: formData.emergencyContactPhone,
+          emergency_contact_relationship: formData.emergencyContactRelationship,
+          pan_card_url: panCardUrl || null,
+          aadhaar_card_url: aadhaarCardUrl || null,
+        });
 
-      await setDoc(doc(db, 'employeeProfiles', currentUser.uid), profileData);
+      if (profileError) throw profileError;
 
-      await setDoc(
-        doc(db, 'users', currentUser.uid),
-        { profileCompleted: true, displayName: formData.fullName },
-        { merge: true }
-      );
+      const { error: userError } = await supabase
+        .from('users')
+        .update({
+          profile_completed: true,
+          display_name: formData.fullName,
+        })
+        .eq('id', currentUser.id);
+
+      if (userError) throw userError;
 
       setUploadProgress(100);
 

@@ -36,9 +36,32 @@ import {
 } from '@chakra-ui/react';
 import { Layout } from '../components/Layout';
 import { useAuth } from '../contexts/AuthContext';
-import { collection, query, where, getDocs, doc, getDoc, setDoc, addDoc, serverTimestamp } from 'firebase/firestore';
-import { db } from '../config/firebase';
-import { LeaveRequest, LeaveType, LeaveBalance, User } from '../types';
+import { supabase } from '../config/supabase';
+import type { LeaveType } from '../types';
+
+interface LeaveRequest {
+  id: string;
+  employee_id: string;
+  employee_name: string;
+  manager_id?: string;
+  leave_type: LeaveType;
+  from_date: string;
+  to_date: string;
+  reason: string;
+  status: 'Pending' | 'Approved' | 'Rejected';
+  applied_at: string;
+  reviewed_at?: string;
+  reviewed_by?: string;
+}
+
+interface LeaveBalance {
+  user_id: string;
+  year: number;
+  paid_and_sick: number;
+  used_paid_and_sick: number;
+  national_holidays: number;
+  used_national_holidays: number;
+}
 
 const LeaveManagement: React.FC = () => {
   const { currentUser, userData } = useAuth();
@@ -63,35 +86,52 @@ const LeaveManagement: React.FC = () => {
     if (!currentUser) return;
 
     try {
-      const leavesQuery = query(
-        collection(db, 'leaveRequests'),
-        where('employeeId', '==', currentUser.uid)
-      );
-      const leavesSnapshot = await getDocs(leavesQuery);
-      const leaves = leavesSnapshot.docs.map((doc) => ({
-        id: doc.id,
-        ...doc.data(),
-      })) as LeaveRequest[];
+      const { data: leavesData, error: leavesError } = await supabase
+        .from('leave_requests')
+        .select('*')
+        .eq('employee_id', currentUser.id)
+        .order('applied_at', { ascending: false });
 
-      leaves.sort((a, b) => b.appliedAt.getTime() - a.appliedAt.getTime());
-      setLeaveRequests(leaves);
+      if (leavesError) throw leavesError;
 
-      const balanceId = `${currentUser.uid}_${new Date().getFullYear()}`;
-      const balanceDoc = await getDoc(doc(db, 'leaveBalances', balanceId));
+      if (leavesData) {
+        setLeaveRequests(leavesData);
+      }
 
-      if (balanceDoc.exists()) {
-        setLeaveBalance(balanceDoc.data() as LeaveBalance);
+      const { data: balanceData, error: balanceError } = await supabase
+        .from('leave_balances')
+        .select('*')
+        .eq('user_id', currentUser.id)
+        .eq('year', new Date().getFullYear())
+        .single();
+
+      if (balanceError && balanceError.code !== 'PGRST116') {
+        throw balanceError;
+      }
+
+      if (balanceData) {
+        setLeaveBalance(balanceData);
       } else {
-        const newBalance: LeaveBalance = {
-          uid: currentUser.uid,
+        const newBalance = {
+          user_id: currentUser.id,
           year: new Date().getFullYear(),
-          paidAndSick: 18,
-          nationalHolidays: 10,
-          usedPaidAndSick: 0,
-          usedNationalHolidays: 0,
+          paid_and_sick: 18,
+          national_holidays: 10,
+          used_paid_and_sick: 0,
+          used_national_holidays: 0,
         };
-        await setDoc(doc(db, 'leaveBalances', balanceId), newBalance);
-        setLeaveBalance(newBalance);
+
+        const { data: insertedBalance, error: insertError } = await supabase
+          .from('leave_balances')
+          .insert(newBalance)
+          .select()
+          .single();
+
+        if (insertError) throw insertError;
+
+        if (insertedBalance) {
+          setLeaveBalance(insertedBalance);
+        }
       }
     } catch (error) {
       console.error('Error fetching leave data:', error);
@@ -120,7 +160,7 @@ const LeaveManagement: React.FC = () => {
     const leaveDays = calculateLeaveDays();
 
     if (formData.leaveType !== 'National Holiday') {
-      const remaining = (leaveBalance?.paidAndSick || 18) - (leaveBalance?.usedPaidAndSick || 0);
+      const remaining = (leaveBalance?.paid_and_sick || 18) - (leaveBalance?.used_paid_and_sick || 0);
       if (leaveDays > remaining) {
         toast({
           title: 'Insufficient leave balance',
@@ -131,7 +171,7 @@ const LeaveManagement: React.FC = () => {
         return;
       }
     } else {
-      const remaining = (leaveBalance?.nationalHolidays || 10) - (leaveBalance?.usedNationalHolidays || 0);
+      const remaining = (leaveBalance?.national_holidays || 10) - (leaveBalance?.used_national_holidays || 0);
       if (leaveDays > remaining) {
         toast({
           title: 'Insufficient holiday balance',
@@ -149,26 +189,35 @@ const LeaveManagement: React.FC = () => {
       let managerId = userData.managerId;
 
       if (userData.role === 'Manager') {
-        const adminsQuery = query(collection(db, 'users'), where('role', '==', 'Administrator'));
-        const adminsSnapshot = await getDocs(adminsQuery);
-        if (!adminsSnapshot.empty) {
-          managerId = adminsSnapshot.docs[0].id;
+        const { data: adminsData } = await supabase
+          .from('users')
+          .select('id')
+          .eq('role', 'Administrator')
+          .limit(1)
+          .single();
+
+        if (adminsData) {
+          managerId = adminsData.id;
         }
       }
 
-      const leaveRequest: Omit<LeaveRequest, 'id'> = {
-        employeeId: currentUser.uid,
-        employeeName: userData.displayName || userData.email || '',
-        managerId,
-        leaveType: formData.leaveType,
-        fromDate: new Date(formData.fromDate) as any,
-        toDate: new Date(formData.toDate) as any,
+      const leaveRequest = {
+        employee_id: currentUser.id,
+        employee_name: userData.displayName || userData.email || '',
+        manager_id: managerId,
+        leave_type: formData.leaveType,
+        from_date: formData.fromDate,
+        to_date: formData.toDate,
         reason: formData.reason,
         status: 'Pending',
-        appliedAt: serverTimestamp() as any,
+        applied_at: new Date().toISOString(),
       };
 
-      await addDoc(collection(db, 'leaveRequests'), leaveRequest);
+      const { error } = await supabase
+        .from('leave_requests')
+        .insert(leaveRequest);
+
+      if (error) throw error;
 
       toast({
         title: 'Leave request submitted',
@@ -209,8 +258,8 @@ const LeaveManagement: React.FC = () => {
     }
   };
 
-  const remainingPaidLeaves = (leaveBalance?.paidAndSick || 18) - (leaveBalance?.usedPaidAndSick || 0);
-  const remainingHolidays = (leaveBalance?.nationalHolidays || 10) - (leaveBalance?.usedNationalHolidays || 0);
+  const remainingPaidLeaves = (leaveBalance?.paid_and_sick || 18) - (leaveBalance?.used_paid_and_sick || 0);
+  const remainingHolidays = (leaveBalance?.national_holidays || 10) - (leaveBalance?.used_national_holidays || 0);
 
   return (
     <Layout>
@@ -229,7 +278,7 @@ const LeaveManagement: React.FC = () => {
                 <StatLabel>Paid & Sick Leaves</StatLabel>
                 <StatNumber>{remainingPaidLeaves}</StatNumber>
                 <StatHelpText>
-                  Used: {leaveBalance?.usedPaidAndSick || 0} / {leaveBalance?.paidAndSick || 18}
+                  Used: {leaveBalance?.used_paid_and_sick || 0} / {leaveBalance?.paid_and_sick || 18}
                 </StatHelpText>
               </Stat>
             </CardBody>
@@ -241,7 +290,7 @@ const LeaveManagement: React.FC = () => {
                 <StatLabel>National Holidays</StatLabel>
                 <StatNumber>{remainingHolidays}</StatNumber>
                 <StatHelpText>
-                  Used: {leaveBalance?.usedNationalHolidays || 0} / {leaveBalance?.nationalHolidays || 10}
+                  Used: {leaveBalance?.used_national_holidays || 0} / {leaveBalance?.national_holidays || 10}
                 </StatHelpText>
               </Stat>
             </CardBody>
@@ -270,14 +319,14 @@ const LeaveManagement: React.FC = () => {
                     <Tbody>
                       {leaveRequests.map((leave) => (
                         <Tr key={leave.id}>
-                          <Td>{leave.leaveType}</Td>
-                          <Td>{new Date(leave.fromDate).toLocaleDateString()}</Td>
-                          <Td>{new Date(leave.toDate).toLocaleDateString()}</Td>
+                          <Td>{leave.leave_type}</Td>
+                          <Td>{new Date(leave.from_date).toLocaleDateString()}</Td>
+                          <Td>{new Date(leave.to_date).toLocaleDateString()}</Td>
                           <Td>{leave.reason}</Td>
                           <Td>
                             <Badge colorScheme={getStatusColor(leave.status)}>{leave.status}</Badge>
                           </Td>
-                          <Td>{new Date(leave.appliedAt).toLocaleDateString()}</Td>
+                          <Td>{new Date(leave.applied_at).toLocaleDateString()}</Td>
                         </Tr>
                       ))}
                     </Tbody>

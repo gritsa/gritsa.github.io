@@ -32,9 +32,50 @@ import {
 } from '@chakra-ui/react';
 import { Layout } from '../../components/Layout';
 import { useAuth } from '../../contexts/AuthContext';
-import { collection, query, where, getDocs, doc, updateDoc, getDoc, setDoc } from 'firebase/firestore';
-import { db } from '../../config/firebase';
-import { LeaveRequest, User, Timesheet, LeaveBalance } from '../../types';
+import { supabase } from '../../config/supabase';
+
+interface LeaveRequest {
+  id: string;
+  employee_id: string;
+  employee_name: string;
+  manager_id?: string;
+  leave_type: string;
+  from_date: string;
+  to_date: string;
+  reason: string;
+  status: 'Pending' | 'Approved' | 'Rejected';
+  applied_at: string;
+  reviewed_at?: string;
+  reviewed_by?: string;
+  review_comments?: string;
+}
+
+interface User {
+  id: string;
+  email: string;
+  role: string;
+  display_name?: string;
+  manager_id?: string;
+  project_ids?: string[];
+}
+
+interface Timesheet {
+  id: string;
+  employee_id: string;
+  month: number;
+  year: number;
+  days: Record<number, any>;
+  status: 'Draft' | 'Submitted';
+}
+
+interface LeaveBalance {
+  user_id: string;
+  year: number;
+  paid_and_sick: number;
+  used_paid_and_sick: number;
+  national_holidays: number;
+  used_national_holidays: number;
+}
 
 const ManagerDashboard: React.FC = () => {
   const { currentUser } = useAuth();
@@ -55,35 +96,42 @@ const ManagerDashboard: React.FC = () => {
     if (!currentUser) return;
 
     try {
-      const reporteesQuery = query(
-        collection(db, 'users'),
-        where('managerId', '==', currentUser.uid)
-      );
-      const reporteesSnapshot = await getDocs(reporteesQuery);
-      const reporteesData = reporteesSnapshot.docs.map((doc) => doc.data() as User);
-      setReportees(reporteesData);
+      const { data: reporteesData, error: reporteesError } = await supabase
+        .from('users')
+        .select('*')
+        .eq('manager_id', currentUser.id);
 
-      const reporteeIds = reporteesData.map((r) => r.uid);
+      if (reporteesError) throw reporteesError;
 
-      if (reporteeIds.length > 0) {
-        const leavesQuery = query(
-          collection(db, 'leaveRequests'),
-          where('managerId', '==', currentUser.uid)
-        );
-        const leavesSnapshot = await getDocs(leavesQuery);
-        const leaves = leavesSnapshot.docs.map((doc) => ({
-          id: doc.id,
-          ...doc.data(),
-        })) as LeaveRequest[];
-        leaves.sort((a, b) => b.appliedAt.getTime() - a.appliedAt.getTime());
-        setLeaveRequests(leaves);
+      if (reporteesData) {
+        setReportees(reporteesData);
 
-        const timesheetsSnapshot = await getDocs(collection(db, 'timesheets'));
-        const allTimesheets = timesheetsSnapshot.docs.map((doc) => doc.data() as Timesheet);
-        const reporteeTimesheets = allTimesheets.filter((t) =>
-          reporteeIds.includes(t.employeeId)
-        );
-        setTimesheets(reporteeTimesheets);
+        const reporteeIds = reporteesData.map((r) => r.id);
+
+        if (reporteeIds.length > 0) {
+          const { data: leavesData, error: leavesError } = await supabase
+            .from('leave_requests')
+            .select('*')
+            .eq('manager_id', currentUser.id)
+            .order('applied_at', { ascending: false });
+
+          if (leavesError) throw leavesError;
+
+          if (leavesData) {
+            setLeaveRequests(leavesData);
+          }
+
+          const { data: timesheetsData, error: timesheetsError } = await supabase
+            .from('timesheets')
+            .select('*')
+            .in('employee_id', reporteeIds);
+
+          if (timesheetsError) throw timesheetsError;
+
+          if (timesheetsData) {
+            setTimesheets(timesheetsData);
+          }
+        }
       }
     } catch (error) {
       console.error('Error fetching manager data:', error);
@@ -97,8 +145,8 @@ const ManagerDashboard: React.FC = () => {
   };
 
   const calculateLeaveDays = (leave: LeaveRequest) => {
-    const from = new Date(leave.fromDate);
-    const to = new Date(leave.toDate);
+    const from = new Date(leave.from_date);
+    const to = new Date(leave.to_date);
     const diffTime = Math.abs(to.getTime() - from.getTime());
     return Math.ceil(diffTime / (1000 * 60 * 60 * 24)) + 1;
   };
@@ -109,29 +157,53 @@ const ManagerDashboard: React.FC = () => {
     setLoading(true);
 
     try {
-      await updateDoc(doc(db, 'leaveRequests', selectedLeave.id), {
-        status: approve ? 'Approved' : 'Rejected',
-        reviewedBy: currentUser.uid,
-        reviewedAt: new Date(),
-        reviewComments: reviewComments,
-      });
+      const { error: updateError } = await supabase
+        .from('leave_requests')
+        .update({
+          status: approve ? 'Approved' : 'Rejected',
+          reviewed_by: currentUser.id,
+          reviewed_at: new Date().toISOString(),
+          review_comments: reviewComments,
+        })
+        .eq('id', selectedLeave.id);
+
+      if (updateError) throw updateError;
 
       if (approve) {
         const leaveDays = calculateLeaveDays(selectedLeave);
-        const balanceId = `${selectedLeave.employeeId}_${new Date().getFullYear()}`;
-        const balanceDoc = await getDoc(doc(db, 'leaveBalances', balanceId));
 
-        if (balanceDoc.exists()) {
-          const balance = balanceDoc.data() as LeaveBalance;
+        const { data: balanceData, error: balanceError } = await supabase
+          .from('leave_balances')
+          .select('*')
+          .eq('user_id', selectedLeave.employee_id)
+          .eq('year', new Date().getFullYear())
+          .single();
 
-          if (selectedLeave.leaveType === 'National Holiday') {
-            await updateDoc(doc(db, 'leaveBalances', balanceId), {
-              usedNationalHolidays: balance.usedNationalHolidays + leaveDays,
-            });
+        if (balanceError && balanceError.code !== 'PGRST116') {
+          throw balanceError;
+        }
+
+        if (balanceData) {
+          if (selectedLeave.leave_type === 'National Holiday') {
+            const { error } = await supabase
+              .from('leave_balances')
+              .update({
+                used_national_holidays: balanceData.used_national_holidays + leaveDays,
+              })
+              .eq('user_id', selectedLeave.employee_id)
+              .eq('year', new Date().getFullYear());
+
+            if (error) throw error;
           } else {
-            await updateDoc(doc(db, 'leaveBalances', balanceId), {
-              usedPaidAndSick: balance.usedPaidAndSick + leaveDays,
-            });
+            const { error } = await supabase
+              .from('leave_balances')
+              .update({
+                used_paid_and_sick: balanceData.used_paid_and_sick + leaveDays,
+              })
+              .eq('user_id', selectedLeave.employee_id)
+              .eq('year', new Date().getFullYear());
+
+            if (error) throw error;
           }
         }
       }
@@ -207,10 +279,10 @@ const ManagerDashboard: React.FC = () => {
                           <Tbody>
                             {leaveRequests.map((leave) => (
                               <Tr key={leave.id}>
-                                <Td>{leave.employeeName}</Td>
-                                <Td>{leave.leaveType}</Td>
-                                <Td>{new Date(leave.fromDate).toLocaleDateString()}</Td>
-                                <Td>{new Date(leave.toDate).toLocaleDateString()}</Td>
+                                <Td>{leave.employee_name}</Td>
+                                <Td>{leave.leave_type}</Td>
+                                <Td>{new Date(leave.from_date).toLocaleDateString()}</Td>
+                                <Td>{new Date(leave.to_date).toLocaleDateString()}</Td>
                                 <Td>{calculateLeaveDays(leave)}</Td>
                                 <Td>{leave.reason}</Td>
                                 <Td>
@@ -257,10 +329,10 @@ const ManagerDashboard: React.FC = () => {
                           </Thead>
                           <Tbody>
                             {timesheets.map((timesheet) => {
-                              const employee = reportees.find((r) => r.uid === timesheet.employeeId);
+                              const employee = reportees.find((r) => r.id === timesheet.employee_id);
                               return (
                                 <Tr key={timesheet.id}>
-                                  <Td>{employee?.displayName || employee?.email}</Td>
+                                  <Td>{employee?.display_name || employee?.email}</Td>
                                   <Td>{timesheet.month + 1}</Td>
                                   <Td>{timesheet.year}</Td>
                                   <Td>
@@ -303,13 +375,13 @@ const ManagerDashboard: React.FC = () => {
                           </Thead>
                           <Tbody>
                             {reportees.map((reportee) => (
-                              <Tr key={reportee.uid}>
-                                <Td>{reportee.displayName || '-'}</Td>
+                              <Tr key={reportee.id}>
+                                <Td>{reportee.display_name || '-'}</Td>
                                 <Td>{reportee.email}</Td>
                                 <Td>
                                   <Badge colorScheme="green">{reportee.role}</Badge>
                                 </Td>
-                                <Td>{reportee.projectIds?.length || 0} projects</Td>
+                                <Td>{reportee.project_ids?.length || 0} projects</Td>
                               </Tr>
                             ))}
                           </Tbody>
@@ -334,17 +406,17 @@ const ManagerDashboard: React.FC = () => {
               <VStack spacing={4} align="stretch">
                 <Box>
                   <Text fontWeight="bold">Employee:</Text>
-                  <Text>{selectedLeave.employeeName}</Text>
+                  <Text>{selectedLeave.employee_name}</Text>
                 </Box>
                 <Box>
                   <Text fontWeight="bold">Leave Type:</Text>
-                  <Text>{selectedLeave.leaveType}</Text>
+                  <Text>{selectedLeave.leave_type}</Text>
                 </Box>
                 <Box>
                   <Text fontWeight="bold">Duration:</Text>
                   <Text>
-                    {new Date(selectedLeave.fromDate).toLocaleDateString()} to{' '}
-                    {new Date(selectedLeave.toDate).toLocaleDateString()}
+                    {new Date(selectedLeave.from_date).toLocaleDateString()} to{' '}
+                    {new Date(selectedLeave.to_date).toLocaleDateString()}
                   </Text>
                   <Text fontSize="sm" color="gray.600">
                     ({calculateLeaveDays(selectedLeave)} days)

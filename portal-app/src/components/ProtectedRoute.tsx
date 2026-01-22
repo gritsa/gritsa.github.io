@@ -1,6 +1,6 @@
 import React from 'react';
 import { Navigate } from 'react-router-dom';
-import { Spinner, Center } from '@chakra-ui/react';
+import { Spinner, Box } from '@chakra-ui/react';
 import { useAuth } from '../contexts/AuthContext';
 import type { UserRole } from '../types';
 
@@ -19,9 +19,19 @@ export const ProtectedRoute: React.FC<ProtectedRouteProps> = ({
 
   if (loading) {
     return (
-      <Center h="100vh">
-        <Spinner size="xl" color="blue.500" />
-      </Center>
+      <Box
+        display="flex"
+        alignItems="center"
+        justifyContent="center"
+        minH="100vh"
+        w="100vw"
+        bg="#0a0a0a"
+        position="fixed"
+        top="0"
+        left="0"
+      >
+        <Spinner size="xl" color="brand.500" thickness="4px" />
+      </Box>
     );
   }
 

@@ -10,12 +10,12 @@ import {
   MenuItem,
   Avatar,
   HStack,
-  useColorModeValue,
-  Container,
+  Image,
 } from '@chakra-ui/react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
 import { ChevronDownIcon } from '@chakra-ui/icons';
+import logo from '../assets/Gritsa-Logo-V2-Subtle.svg';
 
 interface LayoutProps {
   children: React.ReactNode;
@@ -24,8 +24,6 @@ interface LayoutProps {
 export const Layout: React.FC<LayoutProps> = ({ children }) => {
   const { userData, signOut } = useAuth();
   const navigate = useNavigate();
-  const bgColor = useColorModeValue('white', 'gray.800');
-  const borderColor = useColorModeValue('gray.200', 'gray.700');
 
   const handleSignOut = async () => {
     await signOut();
@@ -52,19 +50,40 @@ export const Layout: React.FC<LayoutProps> = ({ children }) => {
   };
 
   return (
-    <Box minH="100vh" bg={useColorModeValue('gray.50', 'gray.900')}>
-      <Box bg={bgColor} px={4} borderBottom="1px" borderColor={borderColor}>
-        <Flex h={16} alignItems="center" justifyContent="space-between">
-          <HStack spacing={8}>
-            <Text fontSize="xl" fontWeight="bold" color="blue.500">
-              Gritsa Portal
-            </Text>
-            <HStack spacing={4}>
+    <Box minH="100vh" bg="#0a0a0a">
+      {/* Header */}
+      <Box
+        bg="rgba(255, 255, 255, 0.03)"
+        backdropFilter="blur(10px)"
+        borderBottom="1px solid"
+        borderColor="rgba(255, 255, 255, 0.1)"
+        px={8}
+      >
+        <Flex h={20} alignItems="center" justifyContent="space-between" maxW="100%" mx="auto">
+          <HStack spacing={12}>
+            <Image
+              src={logo}
+              alt="Gritsa Logo"
+              h="60px"
+              cursor="pointer"
+              onClick={() => navigate('/')}
+            />
+            <HStack spacing={1}>
               {getNavigationItems().map((item) => (
                 <Button
                   key={item.path}
                   variant="ghost"
                   onClick={() => navigate(item.path)}
+                  color="whiteAlpha.900"
+                  _hover={{
+                    bg: 'whiteAlpha.100',
+                    transform: 'translateY(-1px)',
+                  }}
+                  _active={{
+                    bg: 'whiteAlpha.200',
+                  }}
+                  fontWeight="500"
+                  fontSize="sm"
                 >
                   {item.label}
                 </Button>
@@ -73,28 +92,50 @@ export const Layout: React.FC<LayoutProps> = ({ children }) => {
           </HStack>
 
           <Menu>
-            <MenuButton as={Button} rightIcon={<ChevronDownIcon />} variant="ghost">
-              <HStack>
+            <MenuButton
+              as={Button}
+              rightIcon={<ChevronDownIcon />}
+              variant="ghost"
+              color="whiteAlpha.900"
+              _hover={{ bg: 'whiteAlpha.100' }}
+              _active={{ bg: 'whiteAlpha.200' }}
+            >
+              <HStack spacing={3}>
                 <Avatar size="sm" name={userData?.displayName || userData?.email} />
                 <Box textAlign="left">
-                  <Text fontSize="sm">{userData?.displayName || userData?.email}</Text>
-                  <Text fontSize="xs" color="gray.500">
+                  <Text fontSize="sm" fontWeight="600">
+                    {userData?.displayName || userData?.email}
+                  </Text>
+                  <Text fontSize="xs" color="whiteAlpha.700">
                     {userData?.role}
                   </Text>
                 </Box>
               </HStack>
             </MenuButton>
-            <MenuList>
-              <MenuItem onClick={() => navigate('/profile')}>My Profile</MenuItem>
-              <MenuItem onClick={handleSignOut}>Sign Out</MenuItem>
+            <MenuList bg="rgba(20, 20, 20, 0.95)" backdropFilter="blur(10px)" borderColor="whiteAlpha.200">
+              <MenuItem
+                onClick={() => navigate('/profile')}
+                bg="transparent"
+                _hover={{ bg: 'whiteAlpha.100' }}
+              >
+                My Profile
+              </MenuItem>
+              <MenuItem
+                onClick={handleSignOut}
+                bg="transparent"
+                _hover={{ bg: 'whiteAlpha.100' }}
+              >
+                Sign Out
+              </MenuItem>
             </MenuList>
           </Menu>
         </Flex>
       </Box>
 
-      <Container maxW="container.xl" py={8}>
+      {/* Main Content - Full Width */}
+      <Box px={8} py={8} w="100%">
         {children}
-      </Container>
+      </Box>
     </Box>
   );
 };

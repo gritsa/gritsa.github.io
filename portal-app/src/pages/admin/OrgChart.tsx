@@ -7,9 +7,15 @@ import {
   CardBody,
   Badge,
 } from '@chakra-ui/react';
-import { collection, getDocs } from 'firebase/firestore';
-import { db } from '../../config/firebase';
-import { User } from '../../types';
+import { supabase } from '../../config/supabase';
+
+interface User {
+  id: string;
+  email: string;
+  role: string;
+  display_name?: string;
+  manager_id?: string;
+}
 
 const OrgChart: React.FC = () => {
   const [users, setUsers] = useState<User[]>([]);
@@ -21,34 +27,41 @@ const OrgChart: React.FC = () => {
 
   const fetchUsers = async () => {
     try {
-      const usersSnapshot = await getDocs(collection(db, 'users'));
-      const usersData = usersSnapshot.docs.map((doc) => doc.data() as User);
-      setUsers(usersData);
+      const { data, error } = await supabase
+        .from('users')
+        .select('*')
+        .order('email');
 
-      const tree = new Map<string, User[]>();
-      usersData.forEach((user) => {
-        const managerId = user.managerId || 'root';
-        if (!tree.has(managerId)) {
-          tree.set(managerId, []);
-        }
-        tree.get(managerId)!.push(user);
-      });
+      if (error) throw error;
 
-      setOrgTree(tree);
+      if (data) {
+        setUsers(data);
+
+        const tree = new Map<string, User[]>();
+        data.forEach((user) => {
+          const managerId = user.manager_id || 'root';
+          if (!tree.has(managerId)) {
+            tree.set(managerId, []);
+          }
+          tree.get(managerId)!.push(user);
+        });
+
+        setOrgTree(tree);
+      }
     } catch (error) {
       console.error('Error fetching users:', error);
     }
   };
 
   const renderUserNode = (user: User, level: number = 0) => {
-    const reportees = orgTree.get(user.uid) || [];
+    const reportees = orgTree.get(user.id) || [];
 
     return (
-      <Box key={user.uid} ml={level * 8} mb={4}>
+      <Box key={user.id} ml={level * 8} mb={4}>
         <Card>
           <CardBody>
             <VStack align="start" spacing={1}>
-              <Text fontWeight="bold">{user.displayName || user.email}</Text>
+              <Text fontWeight="bold">{user.display_name || user.email}</Text>
               <Badge colorScheme={
                 user.role === 'Administrator' ? 'purple' :
                 user.role === 'Manager' ? 'blue' : 'green'

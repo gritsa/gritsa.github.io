@@ -12,14 +12,29 @@ import {
   VStack,
   Text,
   Button,
-  HStack,
 } from '@chakra-ui/react';
 import { useNavigate } from 'react-router-dom';
 import { Layout } from '../components/Layout';
 import { useAuth } from '../contexts/AuthContext';
-import { doc, getDoc, collection, query, where, getDocs } from 'firebase/firestore';
-import { db } from '../config/firebase';
-import { EmployeeProfile, Project, LeaveBalance } from '../types';
+import { supabase } from '../config/supabase';
+
+interface EmployeeProfile {
+  full_name: string;
+  [key: string]: any;
+}
+
+interface Project {
+  id: string;
+  name: string;
+  description?: string;
+}
+
+interface LeaveBalance {
+  paid_and_sick: number;
+  used_paid_and_sick: number;
+  national_holidays: number;
+  used_national_holidays: number;
+}
 
 const Dashboard: React.FC = () => {
   const { userData, currentUser } = useAuth();
@@ -34,27 +49,57 @@ const Dashboard: React.FC = () => {
       if (!currentUser) return;
 
       try {
-        const profileDoc = await getDoc(doc(db, 'employeeProfiles', currentUser.uid));
-        if (profileDoc.exists()) {
-          setProfile(profileDoc.data() as EmployeeProfile);
+        // Fetch employee profile
+        const { data: profileData } = await supabase
+          .from('employee_profiles')
+          .select('*')
+          .eq('user_id', currentUser.id)
+          .single();
+
+        if (profileData) {
+          setProfile(profileData);
         }
 
+        // Fetch projects
         if (userData?.projectIds && userData.projectIds.length > 0) {
-          const projectPromises = userData.projectIds.map((id) =>
-            getDoc(doc(db, 'projects', id))
-          );
-          const projectDocs = await Promise.all(projectPromises);
-          const projectData = projectDocs
-            .filter((doc) => doc.exists())
-            .map((doc) => ({ id: doc.id, ...doc.data() } as Project));
-          setProjects(projectData);
+          const { data: projectsData } = await supabase
+            .from('projects')
+            .select('*')
+            .in('id', userData.projectIds);
+
+          if (projectsData) {
+            setProjects(projectsData);
+          }
         }
 
-        const leaveBalanceDoc = await getDoc(
-          doc(db, 'leaveBalances', `${currentUser.uid}_${new Date().getFullYear()}`)
-        );
-        if (leaveBalanceDoc.exists()) {
-          setLeaveBalance(leaveBalanceDoc.data() as LeaveBalance);
+        // Fetch leave balance
+        const { data: balanceData } = await supabase
+          .from('leave_balances')
+          .select('*')
+          .eq('user_id', currentUser.id)
+          .eq('year', new Date().getFullYear())
+          .single();
+
+        if (balanceData) {
+          setLeaveBalance(balanceData);
+        } else {
+          // Create initial leave balance if it doesn't exist
+          const { data: newBalance } = await supabase
+            .from('leave_balances')
+            .insert({
+              user_id: currentUser.id,
+              year: new Date().getFullYear(),
+              paid_and_sick: 18,
+              national_holidays: 10,
+              used_paid_and_sick: 0,
+              used_national_holidays: 0,
+            })
+            .select()
+            .single();
+
+          if (newBalance) {
+            setLeaveBalance(newBalance);
+          }
         }
       } catch (error) {
         console.error('Error fetching dashboard data:', error);
@@ -67,78 +112,85 @@ const Dashboard: React.FC = () => {
   }, [currentUser, userData]);
 
   const remainingPaidLeaves = leaveBalance
-    ? leaveBalance.paidAndSick - leaveBalance.usedPaidAndSick
+    ? leaveBalance.paid_and_sick - leaveBalance.used_paid_and_sick
     : 18;
 
   const remainingHolidays = leaveBalance
-    ? leaveBalance.nationalHolidays - leaveBalance.usedNationalHolidays
+    ? leaveBalance.national_holidays - leaveBalance.used_national_holidays
     : 10;
 
   return (
     <Layout>
       <VStack spacing={8} align="stretch">
         <Box>
-          <Heading size="lg" mb={2}>
-            Welcome back, {profile?.personalDetails.fullName || userData?.email}!
+          <Heading size="lg" mb={2} color="white">
+            Welcome back, {profile?.full_name || userData?.email}!
           </Heading>
-          <Text color="gray.600">Here's your overview</Text>
+          <Text color="whiteAlpha.700">Here's your overview</Text>
         </Box>
 
         <SimpleGrid columns={{ base: 1, md: 2, lg: 4 }} spacing={6}>
-          <Card>
+          <Card bg="rgba(255, 255, 255, 0.05)" borderColor="rgba(255, 255, 255, 0.1)">
             <CardBody>
               <Stat>
-                <StatLabel>Paid & Sick Leaves</StatLabel>
-                <StatNumber>{remainingPaidLeaves}</StatNumber>
-                <StatHelpText>Remaining this year</StatHelpText>
+                <StatLabel color="whiteAlpha.800">Paid & Sick Leaves</StatLabel>
+                <StatNumber color="white">{remainingPaidLeaves}</StatNumber>
+                <StatHelpText color="whiteAlpha.600">Remaining this year</StatHelpText>
               </Stat>
             </CardBody>
           </Card>
 
-          <Card>
+          <Card bg="rgba(255, 255, 255, 0.05)" borderColor="rgba(255, 255, 255, 0.1)">
             <CardBody>
               <Stat>
-                <StatLabel>National Holidays</StatLabel>
-                <StatNumber>{remainingHolidays}</StatNumber>
-                <StatHelpText>Available to use</StatHelpText>
+                <StatLabel color="whiteAlpha.800">National Holidays</StatLabel>
+                <StatNumber color="white">{remainingHolidays}</StatNumber>
+                <StatHelpText color="whiteAlpha.600">Available to use</StatHelpText>
               </Stat>
             </CardBody>
           </Card>
 
-          <Card>
+          <Card bg="rgba(255, 255, 255, 0.05)" borderColor="rgba(255, 255, 255, 0.1)">
             <CardBody>
               <Stat>
-                <StatLabel>Active Projects</StatLabel>
-                <StatNumber>{projects.length}</StatNumber>
-                <StatHelpText>Assigned to you</StatHelpText>
+                <StatLabel color="whiteAlpha.800">Active Projects</StatLabel>
+                <StatNumber color="white">{projects.length}</StatNumber>
+                <StatHelpText color="whiteAlpha.600">Assigned to you</StatHelpText>
               </Stat>
             </CardBody>
           </Card>
 
-          <Card>
+          <Card bg="rgba(255, 255, 255, 0.05)" borderColor="rgba(255, 255, 255, 0.1)">
             <CardBody>
               <Stat>
-                <StatLabel>Role</StatLabel>
-                <StatNumber fontSize="lg">{userData?.role}</StatNumber>
-                <StatHelpText>Your position</StatHelpText>
+                <StatLabel color="whiteAlpha.800">Role</StatLabel>
+                <StatNumber fontSize="lg" color="white">{userData?.role}</StatNumber>
+                <StatHelpText color="whiteAlpha.600">Your position</StatHelpText>
               </Stat>
             </CardBody>
           </Card>
         </SimpleGrid>
 
         <SimpleGrid columns={{ base: 1, lg: 2 }} spacing={6}>
-          <Card>
+          <Card bg="rgba(255, 255, 255, 0.05)" borderColor="rgba(255, 255, 255, 0.1)">
             <CardBody>
               <VStack align="stretch" spacing={4}>
-                <Heading size="md">Your Projects</Heading>
+                <Heading size="md" color="white">Your Projects</Heading>
                 {projects.length === 0 ? (
-                  <Text color="gray.500">No projects assigned yet</Text>
+                  <Text color="whiteAlpha.600">No projects assigned yet</Text>
                 ) : (
                   projects.map((project) => (
-                    <Box key={project.id} p={3} bg="gray.50" borderRadius="md">
-                      <Text fontWeight="bold">{project.name}</Text>
+                    <Box
+                      key={project.id}
+                      p={3}
+                      bg="rgba(255, 255, 255, 0.08)"
+                      borderRadius="md"
+                      border="1px solid"
+                      borderColor="rgba(255, 255, 255, 0.1)"
+                    >
+                      <Text fontWeight="bold" color="white">{project.name}</Text>
                       {project.description && (
-                        <Text fontSize="sm" color="gray.600">
+                        <Text fontSize="sm" color="whiteAlpha.700">
                           {project.description}
                         </Text>
                       )}
@@ -149,19 +201,19 @@ const Dashboard: React.FC = () => {
             </CardBody>
           </Card>
 
-          <Card>
+          <Card bg="rgba(255, 255, 255, 0.05)" borderColor="rgba(255, 255, 255, 0.1)">
             <CardBody>
               <VStack align="stretch" spacing={4}>
-                <Heading size="md">Quick Actions</Heading>
+                <Heading size="md" color="white">Quick Actions</Heading>
                 <Button
-                  colorScheme="blue"
+                  variant="gradient"
                   onClick={() => navigate('/timesheet')}
                   width="full"
                 >
                   Fill Timesheet
                 </Button>
                 <Button
-                  colorScheme="green"
+                  variant="gradient"
                   onClick={() => navigate('/leaves')}
                   width="full"
                 >
@@ -171,6 +223,9 @@ const Dashboard: React.FC = () => {
                   variant="outline"
                   onClick={() => navigate('/profile')}
                   width="full"
+                  color="whiteAlpha.900"
+                  borderColor="rgba(255, 255, 255, 0.2)"
+                  _hover={{ bg: 'rgba(255, 255, 255, 0.1)', borderColor: 'brand.400' }}
                 >
                   View Profile
                 </Button>

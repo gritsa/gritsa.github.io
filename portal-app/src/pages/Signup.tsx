@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState } from 'react';
 import {
   Box,
   Button,
@@ -9,46 +9,70 @@ import {
   Text,
   useToast,
   Heading,
+  InputGroup,
+  InputRightAddon,
   Link,
   Image,
 } from '@chakra-ui/react';
 import { useNavigate } from 'react-router-dom';
-import { useAuth } from '../contexts/AuthContext';
+import { supabase } from '../config/supabase';
 import logo from '../assets/Gritsa-Logo-V2-Subtle.svg';
 
-const Login: React.FC = () => {
-  const [email, setEmail] = useState('');
+const Signup: React.FC = () => {
+  const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
+  const [confirmPassword, setConfirmPassword] = useState('');
   const [loading, setLoading] = useState(false);
-  const { signIn, currentUser, userData } = useAuth();
   const navigate = useNavigate();
   const toast = useToast();
 
-  useEffect(() => {
-    if (currentUser && userData) {
-      if (!userData.profileCompleted) {
-        navigate('/profile/complete');
-      } else {
-        navigate('/');
-      }
-    }
-  }, [currentUser, userData, navigate]);
-
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+
+    if (password !== confirmPassword) {
+      toast({
+        title: 'Passwords do not match',
+        status: 'error',
+        duration: 3000,
+      });
+      return;
+    }
+
+    if (password.length < 6) {
+      toast({
+        title: 'Password must be at least 6 characters',
+        status: 'error',
+        duration: 3000,
+      });
+      return;
+    }
+
     setLoading(true);
 
     try {
-      await signIn(email, password);
-      toast({
-        title: 'Welcome back!',
-        status: 'success',
-        duration: 3000,
+      const email = `${username}@gritsa.com`;
+
+      // Sign up the user
+      const { data, error } = await supabase.auth.signUp({
+        email,
+        password,
       });
+
+      if (error) throw error;
+
+      if (data.user) {
+        toast({
+          title: 'Account created successfully!',
+          description: 'Please sign in to continue.',
+          status: 'success',
+          duration: 5000,
+        });
+        navigate('/login');
+      }
     } catch (error: any) {
       toast({
-        title: 'Login failed',
-        description: error.message,
+        title: 'Sign up failed',
+        description: error.message || 'An error occurred during sign up',
         status: 'error',
         duration: 5000,
       });
@@ -90,8 +114,8 @@ const Login: React.FC = () => {
       />
 
       <Box
-        w="440px"
-        maxW="90vw"
+        maxW="440px"
+        w="full"
         p={8}
         bg="rgba(255, 255, 255, 0.03)"
         backdropFilter="blur(20px)"
@@ -101,17 +125,16 @@ const Login: React.FC = () => {
         boxShadow="0 8px 32px 0 rgba(0, 0, 0, 0.37)"
         position="relative"
         zIndex="1"
-        mx="auto"
       >
         <VStack spacing={8}>
           <Image src={logo} alt="Gritsa Logo" h="85px" />
 
           <VStack spacing={2}>
             <Heading size="lg" color="white" fontWeight="700">
-              Welcome Back
+              Create Account
             </Heading>
             <Text color="whiteAlpha.700" fontSize="sm">
-              Sign in to your Gritsa account
+              Join the Gritsa team
             </Text>
           </VStack>
 
@@ -119,16 +142,25 @@ const Login: React.FC = () => {
             <VStack spacing={5}>
               <FormControl isRequired>
                 <FormLabel color="whiteAlpha.900" fontSize="sm" fontWeight="600">
-                  Email
+                  Username
                 </FormLabel>
-                <Input
-                  type="email"
-                  value={email}
-                  onChange={(e) => setEmail(e.target.value)}
-                  placeholder="you@gritsa.com"
-                  color="white"
-                  _placeholder={{ color: 'whiteAlpha.500' }}
-                />
+                <InputGroup>
+                  <Input
+                    type="text"
+                    value={username}
+                    onChange={(e) => setUsername(e.target.value)}
+                    placeholder="john.doe"
+                    color="white"
+                    _placeholder={{ color: 'whiteAlpha.500' }}
+                  />
+                  <InputRightAddon
+                    bg="rgba(255, 255, 255, 0.05)"
+                    borderColor="rgba(255, 255, 255, 0.1)"
+                    color="whiteAlpha.700"
+                  >
+                    @gritsa.com
+                  </InputRightAddon>
+                </InputGroup>
               </FormControl>
 
               <FormControl isRequired>
@@ -145,6 +177,20 @@ const Login: React.FC = () => {
                 />
               </FormControl>
 
+              <FormControl isRequired>
+                <FormLabel color="whiteAlpha.900" fontSize="sm" fontWeight="600">
+                  Confirm Password
+                </FormLabel>
+                <Input
+                  type="password"
+                  value={confirmPassword}
+                  onChange={(e) => setConfirmPassword(e.target.value)}
+                  placeholder="••••••••"
+                  color="white"
+                  _placeholder={{ color: 'whiteAlpha.500' }}
+                />
+              </FormControl>
+
               <Button
                 type="submit"
                 variant="gradient"
@@ -153,20 +199,20 @@ const Login: React.FC = () => {
                 isLoading={loading}
                 mt={2}
               >
-                Sign In
+                Create Account
               </Button>
             </VStack>
           </form>
 
           <Text color="whiteAlpha.700" fontSize="sm">
-            Don't have an account?{' '}
+            Already have an account?{' '}
             <Link
               color="brand.400"
               fontWeight="600"
-              onClick={() => navigate('/signup')}
+              onClick={() => navigate('/login')}
               _hover={{ color: 'brand.300' }}
             >
-              Sign up
+              Sign in
             </Link>
           </Text>
         </VStack>
@@ -175,4 +221,4 @@ const Login: React.FC = () => {
   );
 };
 
-export default Login;
+export default Signup;

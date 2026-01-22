@@ -28,10 +28,24 @@ import {
   CheckboxGroup,
   Stack,
 } from '@chakra-ui/react';
-import { collection, getDocs, doc, setDoc, addDoc, updateDoc, serverTimestamp } from 'firebase/firestore';
-import { db } from '../../config/firebase';
-import { Project, User } from '../../types';
+import { supabase } from '../../config/supabase';
 import { useAuth } from '../../contexts/AuthContext';
+
+interface Project {
+  id: string;
+  name: string;
+  description?: string;
+  is_active: boolean;
+  created_by?: string;
+  created_at?: string;
+}
+
+interface User {
+  id: string;
+  email: string;
+  role: string;
+  project_ids?: string[];
+}
 
 const ProjectManagement: React.FC = () => {
   const { currentUser } = useAuth();
@@ -45,7 +59,7 @@ const ProjectManagement: React.FC = () => {
   const [formData, setFormData] = useState({
     name: '',
     description: '',
-    isActive: true,
+    is_active: true,
   });
 
   const [assignedEmployees, setAssignedEmployees] = useState<string[]>([]);
@@ -56,16 +70,27 @@ const ProjectManagement: React.FC = () => {
 
   const fetchData = async () => {
     try {
-      const projectsSnapshot = await getDocs(collection(db, 'projects'));
-      const projectsData = projectsSnapshot.docs.map((doc) => ({
-        id: doc.id,
-        ...doc.data(),
-      })) as Project[];
-      setProjects(projectsData);
+      const { data: projectsData, error: projectsError } = await supabase
+        .from('projects')
+        .select('*')
+        .order('name');
 
-      const usersSnapshot = await getDocs(collection(db, 'users'));
-      const usersData = usersSnapshot.docs.map((doc) => doc.data() as User);
-      setUsers(usersData);
+      if (projectsError) throw projectsError;
+
+      if (projectsData) {
+        setProjects(projectsData);
+      }
+
+      const { data: usersData, error: usersError } = await supabase
+        .from('users')
+        .select('*')
+        .order('email');
+
+      if (usersError) throw usersError;
+
+      if (usersData) {
+        setUsers(usersData);
+      }
     } catch (error) {
       console.error('Error fetching data:', error);
     }
@@ -76,7 +101,7 @@ const ProjectManagement: React.FC = () => {
     setFormData({
       name: '',
       description: '',
-      isActive: true,
+      is_active: true,
     });
     setAssignedEmployees([]);
     onOpen();
@@ -87,11 +112,11 @@ const ProjectManagement: React.FC = () => {
     setFormData({
       name: project.name,
       description: project.description || '',
-      isActive: project.isActive,
+      is_active: project.is_active,
     });
 
-    const usersWithProject = users.filter((u) => u.projectIds?.includes(project.id));
-    setAssignedEmployees(usersWithProject.map((u) => u.uid));
+    const usersWithProject = users.filter((u) => u.project_ids?.includes(project.id));
+    setAssignedEmployees(usersWithProject.map((u) => u.id));
 
     onOpen();
   };
@@ -105,28 +130,39 @@ const ProjectManagement: React.FC = () => {
       let projectId = selectedProject?.id;
 
       if (selectedProject) {
-        await updateDoc(doc(db, 'projects', selectedProject.id), {
-          name: formData.name,
-          description: formData.description,
-          isActive: formData.isActive,
-        });
+        const { error } = await supabase
+          .from('projects')
+          .update({
+            name: formData.name,
+            description: formData.description,
+            is_active: formData.is_active,
+          })
+          .eq('id', selectedProject.id);
+
+        if (error) throw error;
       } else {
-        const newProject = {
-          name: formData.name,
-          description: formData.description,
-          isActive: formData.isActive,
-          createdBy: currentUser.uid,
-          createdAt: serverTimestamp(),
-        };
-        const docRef = await addDoc(collection(db, 'projects'), newProject);
-        projectId = docRef.id;
+        const { data, error } = await supabase
+          .from('projects')
+          .insert({
+            name: formData.name,
+            description: formData.description,
+            is_active: formData.is_active,
+            created_by: currentUser.id,
+            created_at: new Date().toISOString(),
+          })
+          .select()
+          .single();
+
+        if (error) throw error;
+        projectId = data.id;
       }
 
+      // Update user project assignments
       for (const user of users) {
-        const currentProjects = user.projectIds || [];
+        const currentProjects = user.project_ids || [];
         let updatedProjects = [...currentProjects];
 
-        if (assignedEmployees.includes(user.uid)) {
+        if (assignedEmployees.includes(user.id)) {
           if (!updatedProjects.includes(projectId!)) {
             updatedProjects.push(projectId!);
           }
@@ -135,9 +171,14 @@ const ProjectManagement: React.FC = () => {
         }
 
         if (JSON.stringify(currentProjects) !== JSON.stringify(updatedProjects)) {
-          await updateDoc(doc(db, 'users', user.uid), {
-            projectIds: updatedProjects,
-          });
+          const { error } = await supabase
+            .from('users')
+            .update({
+              project_ids: updatedProjects,
+            })
+            .eq('id', user.id);
+
+          if (error) throw error;
         }
       }
 
@@ -162,7 +203,7 @@ const ProjectManagement: React.FC = () => {
   };
 
   const getAssignedEmployees = (projectId: string) => {
-    return users.filter((u) => u.projectIds?.includes(projectId));
+    return users.filter((u) => u.project_ids?.includes(projectId));
   };
 
   return (
@@ -194,8 +235,8 @@ const ProjectManagement: React.FC = () => {
                   <Td fontWeight="bold">{project.name}</Td>
                   <Td>{project.description || '-'}</Td>
                   <Td>
-                    <Badge colorScheme={project.isActive ? 'green' : 'gray'}>
-                      {project.isActive ? 'Active' : 'Inactive'}
+                    <Badge colorScheme={project.is_active ? 'green' : 'gray'}>
+                      {project.is_active ? 'Active' : 'Inactive'}
                     </Badge>
                   </Td>
                   <Td>{getAssignedEmployees(project.id).length} employees</Td>
@@ -237,8 +278,8 @@ const ProjectManagement: React.FC = () => {
 
               <FormControl>
                 <Checkbox
-                  isChecked={formData.isActive}
-                  onChange={(e) => setFormData({ ...formData, isActive: e.target.checked })}
+                  isChecked={formData.is_active}
+                  onChange={(e) => setFormData({ ...formData, is_active: e.target.checked })}
                 >
                   Active
                 </Checkbox>
@@ -250,7 +291,7 @@ const ProjectManagement: React.FC = () => {
                   <CheckboxGroup value={assignedEmployees} onChange={(values) => setAssignedEmployees(values as string[])}>
                     <Stack spacing={2}>
                       {users.map((user) => (
-                        <Checkbox key={user.uid} value={user.uid}>
+                        <Checkbox key={user.id} value={user.id}>
                           {user.email} ({user.role})
                         </Checkbox>
                       ))}

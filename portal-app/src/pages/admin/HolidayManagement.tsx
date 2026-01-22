@@ -25,9 +25,15 @@ import {
   Text,
   Checkbox,
 } from '@chakra-ui/react';
-import { collection, getDocs, doc, setDoc, addDoc, updateDoc, deleteDoc } from 'firebase/firestore';
-import { db } from '../../config/firebase';
-import { NationalHoliday } from '../../types';
+import { supabase } from '../../config/supabase';
+
+interface NationalHoliday {
+  id: string;
+  name: string;
+  date: string;
+  year: number;
+  is_active: boolean;
+}
 
 const HolidayManagement: React.FC = () => {
   const [holidays, setHolidays] = useState<NationalHoliday[]>([]);
@@ -40,7 +46,7 @@ const HolidayManagement: React.FC = () => {
     name: '',
     date: '',
     year: new Date().getFullYear(),
-    isActive: true,
+    is_active: true,
   });
 
   useEffect(() => {
@@ -49,14 +55,16 @@ const HolidayManagement: React.FC = () => {
 
   const fetchHolidays = async () => {
     try {
-      const holidaysSnapshot = await getDocs(collection(db, 'nationalHolidays'));
-      const holidaysData = holidaysSnapshot.docs.map((doc) => ({
-        id: doc.id,
-        ...doc.data(),
-        date: doc.data().date.toDate(),
-      })) as NationalHoliday[];
-      holidaysData.sort((a, b) => a.date.getTime() - b.date.getTime());
-      setHolidays(holidaysData);
+      const { data, error } = await supabase
+        .from('national_holidays')
+        .select('*')
+        .order('date');
+
+      if (error) throw error;
+
+      if (data) {
+        setHolidays(data);
+      }
     } catch (error) {
       console.error('Error fetching holidays:', error);
     }
@@ -68,7 +76,7 @@ const HolidayManagement: React.FC = () => {
       name: '',
       date: '',
       year: new Date().getFullYear(),
-      isActive: true,
+      is_active: true,
     });
     onOpen();
   };
@@ -79,7 +87,7 @@ const HolidayManagement: React.FC = () => {
       name: holiday.name,
       date: new Date(holiday.date).toISOString().split('T')[0],
       year: holiday.year,
-      isActive: holiday.isActive,
+      is_active: holiday.is_active,
     });
     onOpen();
   };
@@ -90,15 +98,24 @@ const HolidayManagement: React.FC = () => {
     try {
       const holidayData = {
         name: formData.name,
-        date: new Date(formData.date),
+        date: formData.date,
         year: formData.year,
-        isActive: formData.isActive,
+        is_active: formData.is_active,
       };
 
       if (selectedHoliday) {
-        await updateDoc(doc(db, 'nationalHolidays', selectedHoliday.id), holidayData);
+        const { error } = await supabase
+          .from('national_holidays')
+          .update(holidayData)
+          .eq('id', selectedHoliday.id);
+
+        if (error) throw error;
       } else {
-        await addDoc(collection(db, 'nationalHolidays'), holidayData);
+        const { error } = await supabase
+          .from('national_holidays')
+          .insert(holidayData);
+
+        if (error) throw error;
       }
 
       toast({
@@ -125,7 +142,13 @@ const HolidayManagement: React.FC = () => {
     if (!confirm('Are you sure you want to delete this holiday?')) return;
 
     try {
-      await deleteDoc(doc(db, 'nationalHolidays', id));
+      const { error } = await supabase
+        .from('national_holidays')
+        .delete()
+        .eq('id', id);
+
+      if (error) throw error;
+
       toast({
         title: 'Holiday deleted',
         status: 'success',
@@ -172,8 +195,8 @@ const HolidayManagement: React.FC = () => {
                   <Td>{new Date(holiday.date).toLocaleDateString()}</Td>
                   <Td>{holiday.year}</Td>
                   <Td>
-                    <Badge colorScheme={holiday.isActive ? 'green' : 'gray'}>
-                      {holiday.isActive ? 'Active' : 'Inactive'}
+                    <Badge colorScheme={holiday.is_active ? 'green' : 'gray'}>
+                      {holiday.is_active ? 'Active' : 'Inactive'}
                     </Badge>
                   </Td>
                   <Td>
@@ -221,8 +244,8 @@ const HolidayManagement: React.FC = () => {
 
               <FormControl>
                 <Checkbox
-                  isChecked={formData.isActive}
-                  onChange={(e) => setFormData({ ...formData, isActive: e.target.checked })}
+                  isChecked={formData.is_active}
+                  onChange={(e) => setFormData({ ...formData, is_active: e.target.checked })}
                 >
                   Active
                 </Checkbox>

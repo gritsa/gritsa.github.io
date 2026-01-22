@@ -1,0 +1,43 @@
+<svg xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" width="1024" height="1024" viewBox="0 0 1024 1024">
+  <defs>
+    <style>
+      .cls-1 {
+        clip-path: url(#clip-Custom_Size_1);
+      }
+
+      .cls-2 {
+        stroke: #fff;
+        stroke-width: 10px;
+        fill: url(#linear-gradient);
+      }
+
+      .cls-3 {
+        fill: none;
+      }
+
+      .cls-4 {
+        filter: url(#Path_1);
+      }
+    </style>
+    <linearGradient id="linear-gradient" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#386BB7"/>
+      <stop offset="100%" stop-color="#E24C4A"/>
+    </linearGradient>
+    <filter id="Path_1" x="311.35" y="94.889" width="401.102" height="840.802" filterUnits="userSpaceOnUse">
+      <feOffset dy="3" input="SourceAlpha"/>
+      <feGaussianBlur stdDeviation="3" result="blur"/>
+      <feFlood flood-opacity="0.161"/>
+      <feComposite operator="in" in2="blur"/>
+      <feComposite in="SourceGraphic"/>
+    </filter>
+    <clipPath id="clip-Custom_Size_1">
+      <rect width="1024" height="1024"/>
+    </clipPath>
+  </defs>
+  <g id="Custom_Size_1" data-name="Custom Size – 1" class="cls-1">
+    <rect class="cls-3" width="1024" height="1024"/>
+    <g class="cls-4" transform="matrix(1, 0, 0, 1, 0, 0)">
+      <path id="Path_1-2" data-name="Path 1" class="cls-2" d="M582.237,195.309C345.522,377.81,684.979,571.946,684.979,571.946s376.6,158.9,0,312.016,37.328-454.75,37.328-454.75,306.276-524.528,41.864-257.654S582.237,195.309,582.237,195.309Z" transform="translate(-173 10)"/>
+    </g>
+  </g>
+</svg>

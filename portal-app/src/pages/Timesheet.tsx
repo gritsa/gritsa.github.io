@@ -21,9 +21,18 @@ import {
 } from '@chakra-ui/react';
 import { Layout } from '../components/Layout';
 import { useAuth } from '../contexts/AuthContext';
-import { doc, getDoc, setDoc, serverTimestamp } from 'firebase/firestore';
-import { db } from '../config/firebase';
-import { Timesheet as TimesheetType, TimesheetDayType } from '../types';
+import { supabase } from '../config/supabase';
+import type { TimesheetDayType } from '../types';
+
+interface TimesheetType {
+  id: string;
+  employee_id: string;
+  month: number;
+  year: number;
+  days: Record<number, { type: TimesheetDayType; description: string }>;
+  status: 'Draft' | 'Submitted';
+  submitted_at?: string;
+}
 
 const Timesheet: React.FC = () => {
   const { currentUser } = useAuth();
@@ -43,15 +52,24 @@ const Timesheet: React.FC = () => {
     if (!currentUser) return;
 
     try {
-      const timesheetId = `${currentUser.uid}_${year}_${month}`;
-      const timesheetDoc = await getDoc(doc(db, 'timesheets', timesheetId));
+      const timesheetId = `${currentUser.id}_${year}_${month}`;
 
-      if (timesheetDoc.exists()) {
-        setTimesheet(timesheetDoc.data() as TimesheetType);
+      const { data, error } = await supabase
+        .from('timesheets')
+        .select('*')
+        .eq('id', timesheetId)
+        .single();
+
+      if (error && error.code !== 'PGRST116') {
+        throw error;
+      }
+
+      if (data) {
+        setTimesheet(data);
       } else {
         const newTimesheet: TimesheetType = {
           id: timesheetId,
-          employeeId: currentUser.uid,
+          employee_id: currentUser.id,
           month,
           year,
           days: {},
@@ -100,13 +118,21 @@ const Timesheet: React.FC = () => {
     setLoading(true);
 
     try {
-      const updatedTimesheet: TimesheetType = {
-        ...timesheet,
+      const updatedTimesheet = {
+        id: timesheet.id,
+        employee_id: timesheet.employee_id,
+        month: timesheet.month,
+        year: timesheet.year,
+        days: timesheet.days,
         status: submit ? 'Submitted' : 'Draft',
-        ...(submit && { submittedAt: serverTimestamp() as any }),
+        ...(submit && { submitted_at: new Date().toISOString() }),
       };
 
-      await setDoc(doc(db, 'timesheets', timesheet.id), updatedTimesheet);
+      const { error } = await supabase
+        .from('timesheets')
+        .upsert(updatedTimesheet);
+
+      if (error) throw error;
 
       toast({
         title: submit ? 'Timesheet submitted successfully' : 'Timesheet saved as draft',
@@ -157,7 +183,7 @@ const Timesheet: React.FC = () => {
     <Layout>
       <VStack spacing={6} align="stretch">
         <Box display="flex" justifyContent="space-between" alignItems="center">
-          <Heading size="lg">Timesheet</Heading>
+          <Heading size="lg" color="white">Timesheet</Heading>
           {timesheet?.status === 'Submitted' && (
             <Badge colorScheme="green" fontSize="md" px={3} py={1}>
               Submitted
@@ -165,7 +191,7 @@ const Timesheet: React.FC = () => {
           )}
         </Box>
 
-        <Card>
+        <Card bg="rgba(255, 255, 255, 0.05)" borderColor="rgba(255, 255, 255, 0.1)">
           <CardBody>
             <VStack spacing={6} align="stretch">
               <HStack spacing={4}>
@@ -208,10 +234,10 @@ const Timesheet: React.FC = () => {
                   </Thead>
                   <Tbody>
                     {Array.from({ length: daysInMonth }, (_, i) => i + 1).map((day) => (
-                      <Tr key={day} bg={isWeekend(day) ? 'gray.50' : 'white'}>
-                        <Td>{day}</Td>
+                      <Tr key={day} bg={isWeekend(day) ? 'rgba(255, 100, 100, 0.1)' : 'transparent'}>
+                        <Td color="white">{day}</Td>
                         <Td>
-                          <Text fontSize="sm" color={isWeekend(day) ? 'red.500' : 'inherit'}>
+                          <Text fontSize="sm" color={isWeekend(day) ? 'red.400' : 'whiteAlpha.900'}>
                             {getDayName(day)}
                           </Text>
                         </Td>
@@ -247,10 +273,17 @@ const Timesheet: React.FC = () => {
 
               {timesheet?.status !== 'Submitted' && (
                 <HStack spacing={4} justify="flex-end">
-                  <Button onClick={() => handleSave(false)} isLoading={loading}>
+                  <Button
+                    onClick={() => handleSave(false)}
+                    isLoading={loading}
+                    variant="outline"
+                    color="whiteAlpha.900"
+                    borderColor="rgba(255, 255, 255, 0.2)"
+                    _hover={{ bg: 'rgba(255, 255, 255, 0.1)', borderColor: 'brand.400' }}
+                  >
                     Save Draft
                   </Button>
-                  <Button colorScheme="blue" onClick={() => handleSave(true)} isLoading={loading}>
+                  <Button variant="gradient" onClick={() => handleSave(true)} isLoading={loading}>
                     Submit Timesheet
                   </Button>
                 </HStack>
