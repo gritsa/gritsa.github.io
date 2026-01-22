@@ -7,6 +7,13 @@ set -e  # Exit on error
 
 echo "🚀 Starting build process..."
 
+# Remove old build files from root (except .git, portal-app, and other important files)
+echo "🧹 Cleaning old build files..."
+find . -maxdepth 1 -type f -name "*.html" -delete 2>/dev/null || true
+find . -maxdepth 1 -type f -name "*.js" -delete 2>/dev/null || true
+find . -maxdepth 1 -type f -name "*.css" -delete 2>/dev/null || true
+rm -rf assets 2>/dev/null || true
+
 # Navigate to portal-app directory
 cd portal-app
 
@@ -16,23 +23,12 @@ if [ ! -d "node_modules" ]; then
   npm install
 fi
 
-# Build the production app
+# Build the production app (builds directly to repo root via vite.config.ts)
 echo "🔨 Building production bundle..."
 npm run build
 
 # Navigate back to repo root
 cd ..
-
-# Remove old build files from root (except .git, portal-app, and other important files)
-echo "🧹 Cleaning old build files..."
-find . -maxdepth 1 -type f -name "*.html" -delete
-find . -maxdepth 1 -type f -name "*.js" -delete
-find . -maxdepth 1 -type f -name "*.css" -delete
-rm -rf assets 2>/dev/null || true
-
-# Copy new build files to root
-echo "📋 Copying build files to root..."
-cp -r portal-app/dist/* .
 
 # Create .nojekyll file to disable Jekyll processing
 # This is critical for files/folders starting with underscore
