@@ -34,28 +34,22 @@ export const ProtectedRoute: React.FC<ProtectedRouteProps> = ({
       console.log('[ProtectedRoute] Loading started at:', new Date().toISOString());
     }
 
-    // If loading persists for more than 10 seconds, force logout and cleanup
-    // Increased from 5 to 10 seconds to avoid false positives during navigation
+    // If loading persists for more than 30 seconds, something is seriously wrong
+    // Increased from 10 to 30 seconds to prevent premature logouts
+    // This should ONLY trigger in genuinely stuck scenarios
     if (loading) {
       const timer = setTimeout(async () => {
         const elapsedTime = Date.now() - (loadingStartTime.current || Date.now());
-        console.warn(`[ProtectedRoute] Loading timeout exceeded 10 seconds (actual: ${elapsedTime}ms) - forcing logout`);
+        console.warn(`[ProtectedRoute] Loading timeout exceeded 30 seconds (actual: ${elapsedTime}ms) - clearing session`);
         setLoadingTimeout(true);
 
-        // Force sign out and clear all storage
-        try {
-          await supabase.auth.signOut();
-        } catch (error) {
-          console.error('[ProtectedRoute] Error during forced sign out:', error);
-        }
+        // Only clear auth storage, don't force sign out
+        // This allows the session to recover on next page load if it's still valid
+        localStorage.removeItem('gritsa-portal-auth');
 
-        // Clear all storage
-        localStorage.clear();
-        sessionStorage.clear();
-
-        // Redirect to login
+        // Redirect to login for fresh auth check
         navigate('/login', { replace: true });
-      }, 10000);
+      }, 30000);
 
       return () => clearTimeout(timer);
     } else {

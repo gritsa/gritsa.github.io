@@ -148,8 +148,9 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         console.log('[AuthContext] User signed out - clearing state');
         setCurrentUser(null);
         setUserData(null);
-        localStorage.clear();
-        sessionStorage.clear();
+        // Only clear auth-related storage, not all storage
+        // This prevents accidental data loss on manual sign out
+        localStorage.removeItem('gritsa-portal-auth');
         return;
       }
 
@@ -207,9 +208,9 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     if (error) {
       throw error;
     }
-    // Clear all storage to prevent stale session data
-    localStorage.clear();
-    sessionStorage.clear();
+    // Only clear auth-related storage on manual sign out
+    // Preserve other app data like user preferences
+    localStorage.removeItem('gritsa-portal-auth');
   };
 
   const refreshUserData = async () => {

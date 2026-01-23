@@ -36,18 +36,18 @@ const Login: React.FC = () => {
     }
   }, [currentUser, userData, navigate]);
 
-  // Auto-recovery mechanism: if login is stuck for more than 6 seconds, force reload
+  // Auto-recovery mechanism: if login is stuck for more than 10 seconds, force reload
+  // Increased from 6 to 10 seconds to prevent false positives on slow networks
   useEffect(() => {
     if (loading && !recoveryAttempted.current) {
       const timer = setTimeout(() => {
-        console.warn('[Login] Login stuck for 6 seconds - forcing page reload to clear corrupted session');
+        console.warn('[Login] Login stuck for 10 seconds - forcing page reload to clear corrupted session');
 
         // Mark recovery attempted
         recoveryAttempted.current = true;
 
-        // Clear all storage
-        localStorage.clear();
-        sessionStorage.clear();
+        // Only clear auth storage, not all storage
+        localStorage.removeItem('gritsa-portal-auth');
 
         // Show brief toast
         toast({
@@ -62,7 +62,7 @@ const Login: React.FC = () => {
         setTimeout(() => {
           window.location.href = '/login';
         }, 1000);
-      }, 6000);
+      }, 10000);
 
       return () => clearTimeout(timer);
     }
