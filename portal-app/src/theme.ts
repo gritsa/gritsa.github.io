@@ -121,12 +121,43 @@ const theme = extendTheme({
           borderRadius: 'lg',
           border: '1px solid',
           borderColor: 'rgba(255, 255, 255, 0.1)',
+          color: 'white',
           _hover: {
             bg: 'rgba(255, 255, 255, 0.08)',
           },
           _focus: {
             bg: 'rgba(255, 255, 255, 0.08)',
             borderColor: 'brand.500',
+          },
+        },
+      },
+      defaultProps: {
+        variant: 'filled',
+      },
+    },
+    Select: {
+      variants: {
+        filled: {
+          field: {
+            bg: 'rgba(255, 255, 255, 0.05)',
+            borderRadius: 'lg',
+            border: '1px solid',
+            borderColor: 'rgba(255, 255, 255, 0.1)',
+            color: 'white',
+            _hover: {
+              bg: 'rgba(255, 255, 255, 0.08)',
+            },
+            _focus: {
+              bg: 'rgba(255, 255, 255, 0.08)',
+              borderColor: 'brand.500',
+            },
+            '> option': {
+              bg: '#1a1a1a',
+              color: 'white',
+            },
+          },
+          icon: {
+            color: 'whiteAlpha.700',
           },
         },
       },
