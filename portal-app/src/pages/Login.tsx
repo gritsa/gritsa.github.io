@@ -36,28 +36,33 @@ const Login: React.FC = () => {
     }
   }, [currentUser, userData, navigate]);
 
-  // Auto-recovery mechanism: if login is stuck for more than 8 seconds, clear storage and allow retry
+  // Auto-recovery mechanism: if login is stuck for more than 6 seconds, force reload
   useEffect(() => {
     if (loading && !recoveryAttempted.current) {
       const timer = setTimeout(() => {
-        console.warn('[Login] Login stuck for 8 seconds - attempting auto-recovery');
+        console.warn('[Login] Login stuck for 6 seconds - forcing page reload to clear corrupted session');
+
+        // Mark recovery attempted
+        recoveryAttempted.current = true;
 
         // Clear all storage
         localStorage.clear();
         sessionStorage.clear();
 
-        // Reset loading state
-        setLoading(false);
-        recoveryAttempted.current = true;
-
+        // Show brief toast
         toast({
-          title: 'Login timeout detected',
-          description: 'Storage cleared. Please try logging in again.',
+          title: 'Recovering from timeout',
+          description: 'Reloading page...',
           status: 'warning',
-          duration: 5000,
-          isClosable: true,
+          duration: 1500,
+          isClosable: false,
         });
-      }, 8000);
+
+        // Force immediate page reload to clear in-memory state
+        setTimeout(() => {
+          window.location.href = '/login';
+        }, 1000);
+      }, 6000);
 
       return () => clearTimeout(timer);
     }

@@ -31,11 +31,18 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     try {
       console.log('[fetchUserData] Starting query for user:', user.id, 'Retry:', retryCount);
 
-      const { data, error } = await supabase
+      // Add timeout to prevent hanging queries
+      const queryPromise = supabase
         .from('users')
         .select('*')
         .eq('id', user.id)
         .single();
+
+      const timeoutPromise = new Promise<never>((_, reject) =>
+        setTimeout(() => reject(new Error('Query timeout after 5 seconds')), 5000)
+      );
+
+      const { data, error } = await Promise.race([queryPromise, timeoutPromise]) as any;
 
       console.log('[fetchUserData] Query response:', { data, error });
 
