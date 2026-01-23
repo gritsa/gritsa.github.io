@@ -166,6 +166,8 @@ const EmployeeProfile: React.FC = () => {
           emergency_contact_relationship: formData.emergencyContactRelationship,
           pan_card_url: panCardUrl || null,
           aadhaar_card_url: aadhaarCardUrl || null,
+        }, {
+          onConflict: 'user_id',
         });
 
       if (profileError) throw profileError;
