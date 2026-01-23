@@ -1,8 +1,9 @@
-import React from 'react';
-import { Navigate } from 'react-router-dom';
+import React, { useEffect, useState } from 'react';
+import { Navigate, useNavigate } from 'react-router-dom';
 import { Spinner, Box } from '@chakra-ui/react';
 import { useAuth } from '../contexts/AuthContext';
 import type { UserRole } from '../types';
+import { supabase } from '../config/supabase';
 
 interface ProtectedRouteProps {
   children: React.ReactNode;
@@ -16,8 +17,36 @@ export const ProtectedRoute: React.FC<ProtectedRouteProps> = ({
   requireProfileComplete = false,
 }) => {
   const { currentUser, userData, loading } = useAuth();
+  const navigate = useNavigate();
+  const [loadingTimeout, setLoadingTimeout] = useState(false);
 
-  if (loading) {
+  useEffect(() => {
+    // If loading persists for more than 5 seconds, force logout and cleanup
+    if (loading) {
+      const timer = setTimeout(async () => {
+        console.warn('[ProtectedRoute] Loading timeout exceeded 5 seconds - forcing logout');
+        setLoadingTimeout(true);
+
+        // Force sign out and clear all storage
+        try {
+          await supabase.auth.signOut();
+        } catch (error) {
+          console.error('[ProtectedRoute] Error during forced sign out:', error);
+        }
+
+        // Clear all storage
+        localStorage.clear();
+        sessionStorage.clear();
+
+        // Redirect to login
+        navigate('/login', { replace: true });
+      }, 5000);
+
+      return () => clearTimeout(timer);
+    }
+  }, [loading, navigate]);
+
+  if (loading && !loadingTimeout) {
     return (
       <Box
         display="flex"

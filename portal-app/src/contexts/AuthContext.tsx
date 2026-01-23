@@ -77,12 +77,75 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
     console.log('[AuthContext] Initializing auth listener...');
 
-    // Listen for auth changes - this will fire immediately with current session
+    // Check for existing session first with timeout
+    const initializeAuth = async () => {
+      try {
+        const sessionPromise = supabase.auth.getSession();
+        const timeoutPromise = new Promise((_, reject) =>
+          setTimeout(() => reject(new Error('Session fetch timeout')), 3000)
+        );
+
+        const { data: { session }, error } = await Promise.race([
+          sessionPromise,
+          timeoutPromise,
+        ]) as any;
+
+        if (error) {
+          console.error('[AuthContext] Error getting session:', error);
+          // Clear potentially corrupted session data
+          localStorage.clear();
+          sessionStorage.clear();
+          if (isMounted) {
+            setLoading(false);
+          }
+          return;
+        }
+
+        if (session?.user && isMounted) {
+          console.log('[AuthContext] Found existing session for:', session.user.email);
+          setCurrentUser(session.user);
+
+          const data = await fetchUserData(session.user);
+          if (isMounted) {
+            setUserData(data);
+          }
+        }
+
+        if (isMounted) {
+          setLoading(false);
+        }
+      } catch (error) {
+        console.error('[AuthContext] Error initializing auth:', error);
+        // Clear potentially corrupted session data
+        localStorage.clear();
+        sessionStorage.clear();
+        if (isMounted) {
+          setLoading(false);
+        }
+      }
+    };
+
+    initializeAuth();
+
+    // Listen for auth changes - handles sign in, sign out, token refresh
     const {
       data: { subscription },
-    } = supabase.auth.onAuthStateChange(async (_event, session) => {
-      console.log('[AuthContext] Auth state changed:', _event, session ? 'User logged in' : 'No user');
+    } = supabase.auth.onAuthStateChange(async (event, session) => {
+      console.log('[AuthContext] Auth state changed:', event, session ? 'User logged in' : 'No user');
       if (!isMounted) return;
+
+      // Handle specific auth events
+      if (event === 'SIGNED_OUT') {
+        setCurrentUser(null);
+        setUserData(null);
+        localStorage.clear();
+        sessionStorage.clear();
+        return;
+      }
+
+      if (event === 'TOKEN_REFRESHED') {
+        console.log('[AuthContext] Token refreshed successfully');
+      }
 
       setCurrentUser(session?.user ?? null);
 
@@ -96,14 +159,13 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
           }
         } catch (error) {
           console.error('[AuthContext] Error fetching user data:', error);
+          // If we can't fetch user data, sign out to prevent stuck state
+          await supabase.auth.signOut();
+          localStorage.clear();
+          sessionStorage.clear();
         }
       } else {
         setUserData(null);
-      }
-
-      if (isMounted) {
-        console.log('[AuthContext] Setting loading to false');
-        setLoading(false);
       }
     });
 
@@ -132,8 +194,9 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     if (error) {
       throw error;
     }
-    // Clear localStorage to prevent stale session data
+    // Clear all storage to prevent stale session data
     localStorage.clear();
+    sessionStorage.clear();
   };
 
   const refreshUserData = async () => {
