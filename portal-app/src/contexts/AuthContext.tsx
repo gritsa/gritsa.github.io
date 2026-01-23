@@ -74,21 +74,22 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
   useEffect(() => {
     let isMounted = true;
+    let initializationComplete = false;
 
     console.log('[AuthContext] Initializing auth listener...');
 
     // Check for existing session first
     const initializeAuth = async () => {
       try {
+        console.log('[AuthContext] Fetching session...');
         const { data: { session }, error } = await supabase.auth.getSession();
 
         if (error) {
           console.error('[AuthContext] Error getting session:', error);
-          // Clear potentially corrupted session data
-          localStorage.clear();
-          sessionStorage.clear();
+          // Don't clear storage on initial load error - might be temporary network issue
           if (isMounted) {
             setLoading(false);
+            initializationComplete = true;
           }
           return;
         }
@@ -101,21 +102,30 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
           if (isMounted) {
             setUserData(data);
           }
+        } else {
+          console.log('[AuthContext] No existing session found');
         }
 
         if (isMounted) {
           setLoading(false);
+          initializationComplete = true;
         }
       } catch (error) {
         console.error('[AuthContext] Error initializing auth:', error);
-        // Clear potentially corrupted session data
-        localStorage.clear();
-        sessionStorage.clear();
         if (isMounted) {
           setLoading(false);
+          initializationComplete = true;
         }
       }
     };
+
+    // Set a safety timeout to ensure loading doesn't hang indefinitely
+    const safetyTimeout = setTimeout(() => {
+      if (!initializationComplete && isMounted) {
+        console.warn('[AuthContext] Initialization timeout - forcing loading to false');
+        setLoading(false);
+      }
+    }, 5000);
 
     initializeAuth();
 
@@ -128,6 +138,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
       // Handle specific auth events
       if (event === 'SIGNED_OUT') {
+        console.log('[AuthContext] User signed out - clearing state');
         setCurrentUser(null);
         setUserData(null);
         localStorage.clear();
@@ -137,6 +148,10 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
       if (event === 'TOKEN_REFRESHED') {
         console.log('[AuthContext] Token refreshed successfully');
+      }
+
+      if (event === 'SIGNED_IN') {
+        console.log('[AuthContext] User signed in');
       }
 
       setCurrentUser(session?.user ?? null);
@@ -151,10 +166,8 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
           }
         } catch (error) {
           console.error('[AuthContext] Error fetching user data:', error);
-          // If we can't fetch user data, sign out to prevent stuck state
-          await supabase.auth.signOut();
-          localStorage.clear();
-          sessionStorage.clear();
+          // Don't auto-logout on fetch error - might be temporary network issue
+          // Let the user try to recover or manually logout
         }
       } else {
         setUserData(null);
@@ -167,6 +180,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     return () => {
       isMounted = false;
       subscription.unsubscribe();
+      clearTimeout(safetyTimeout);
     };
   }, []);
 

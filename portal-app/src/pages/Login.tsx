@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import {
   Box,
   Button,
@@ -23,6 +23,8 @@ const Login: React.FC = () => {
   const { signIn, currentUser, userData } = useAuth();
   const navigate = useNavigate();
   const toast = useToast();
+  const loginAttemptTime = useRef<number | null>(null);
+  const recoveryAttempted = useRef(false);
 
   useEffect(() => {
     if (currentUser && userData) {
@@ -34,9 +36,38 @@ const Login: React.FC = () => {
     }
   }, [currentUser, userData, navigate]);
 
+  // Auto-recovery mechanism: if login is stuck for more than 8 seconds, clear storage and allow retry
+  useEffect(() => {
+    if (loading && !recoveryAttempted.current) {
+      const timer = setTimeout(() => {
+        console.warn('[Login] Login stuck for 8 seconds - attempting auto-recovery');
+
+        // Clear all storage
+        localStorage.clear();
+        sessionStorage.clear();
+
+        // Reset loading state
+        setLoading(false);
+        recoveryAttempted.current = true;
+
+        toast({
+          title: 'Login timeout detected',
+          description: 'Storage cleared. Please try logging in again.',
+          status: 'warning',
+          duration: 5000,
+          isClosable: true,
+        });
+      }, 8000);
+
+      return () => clearTimeout(timer);
+    }
+  }, [loading, toast]);
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setLoading(true);
+    loginAttemptTime.current = Date.now();
+    recoveryAttempted.current = false;
 
     try {
       await signIn(email, password);
@@ -46,14 +77,30 @@ const Login: React.FC = () => {
         duration: 3000,
       });
     } catch (error: any) {
-      toast({
-        title: 'Login failed',
-        description: error.message,
-        status: 'error',
-        duration: 5000,
-      });
+      // If login fails due to session issues, clear storage and suggest retry
+      if (error.message?.includes('session') || error.message?.includes('token')) {
+        console.error('[Login] Session-related error detected, clearing storage');
+        localStorage.clear();
+        sessionStorage.clear();
+
+        toast({
+          title: 'Session error detected',
+          description: 'Storage cleared. Please try logging in again.',
+          status: 'error',
+          duration: 5000,
+          isClosable: true,
+        });
+      } else {
+        toast({
+          title: 'Login failed',
+          description: error.message,
+          status: 'error',
+          duration: 5000,
+        });
+      }
     } finally {
       setLoading(false);
+      loginAttemptTime.current = null;
     }
   };
 

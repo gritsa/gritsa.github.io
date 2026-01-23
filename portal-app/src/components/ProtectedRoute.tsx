@@ -1,5 +1,5 @@
-import React, { useEffect, useState } from 'react';
-import { Navigate, useNavigate } from 'react-router-dom';
+import React, { useEffect, useState, useRef } from 'react';
+import { Navigate, useNavigate, useLocation } from 'react-router-dom';
 import { Spinner, Box } from '@chakra-ui/react';
 import { useAuth } from '../contexts/AuthContext';
 import type { UserRole } from '../types';
@@ -18,13 +18,28 @@ export const ProtectedRoute: React.FC<ProtectedRouteProps> = ({
 }) => {
   const { currentUser, userData, loading } = useAuth();
   const navigate = useNavigate();
+  const location = useLocation();
   const [loadingTimeout, setLoadingTimeout] = useState(false);
+  const loadingStartTime = useRef<number | null>(null);
 
   useEffect(() => {
-    // If loading persists for more than 5 seconds, force logout and cleanup
+    // Reset timeout flag when location changes (user navigates)
+    setLoadingTimeout(false);
+  }, [location.pathname]);
+
+  useEffect(() => {
+    // Track when loading starts
+    if (loading && loadingStartTime.current === null) {
+      loadingStartTime.current = Date.now();
+      console.log('[ProtectedRoute] Loading started at:', new Date().toISOString());
+    }
+
+    // If loading persists for more than 10 seconds, force logout and cleanup
+    // Increased from 5 to 10 seconds to avoid false positives during navigation
     if (loading) {
       const timer = setTimeout(async () => {
-        console.warn('[ProtectedRoute] Loading timeout exceeded 5 seconds - forcing logout');
+        const elapsedTime = Date.now() - (loadingStartTime.current || Date.now());
+        console.warn(`[ProtectedRoute] Loading timeout exceeded 10 seconds (actual: ${elapsedTime}ms) - forcing logout`);
         setLoadingTimeout(true);
 
         // Force sign out and clear all storage
@@ -40,9 +55,12 @@ export const ProtectedRoute: React.FC<ProtectedRouteProps> = ({
 
         // Redirect to login
         navigate('/login', { replace: true });
-      }, 5000);
+      }, 10000);
 
       return () => clearTimeout(timer);
+    } else {
+      // Reset loading start time when loading completes
+      loadingStartTime.current = null;
     }
   }, [loading, navigate]);
 
