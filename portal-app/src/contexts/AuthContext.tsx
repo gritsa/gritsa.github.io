@@ -77,18 +77,10 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
     console.log('[AuthContext] Initializing auth listener...');
 
-    // Check for existing session first with timeout
+    // Check for existing session first
     const initializeAuth = async () => {
       try {
-        const sessionPromise = supabase.auth.getSession();
-        const timeoutPromise = new Promise((_, reject) =>
-          setTimeout(() => reject(new Error('Session fetch timeout')), 3000)
-        );
-
-        const { data: { session }, error } = await Promise.race([
-          sessionPromise,
-          timeoutPromise,
-        ]) as any;
+        const { data: { session }, error } = await supabase.auth.getSession();
 
         if (error) {
           console.error('[AuthContext] Error getting session:', error);
