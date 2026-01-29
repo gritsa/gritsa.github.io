@@ -18,7 +18,13 @@ import {
   HStack,
   Badge,
   Text,
+  Menu,
+  MenuButton,
+  MenuList,
+  MenuItem,
+  IconButton,
 } from '@chakra-ui/react';
+import { DownloadIcon, ChevronDownIcon } from '@chakra-ui/icons';
 import { Layout } from '../components/Layout';
 import { useAuth } from '../contexts/AuthContext';
 import { supabase } from '../config/supabase';
@@ -35,7 +41,7 @@ interface TimesheetType {
 }
 
 const Timesheet: React.FC = () => {
-  const { currentUser } = useAuth();
+  const { currentUser, userData } = useAuth();
   const [month, setMonth] = useState(new Date().getMonth());
   const [year, setYear] = useState(new Date().getFullYear());
   const [timesheet, setTimesheet] = useState<TimesheetType | null>(null);
@@ -160,6 +166,231 @@ const Timesheet: React.FC = () => {
     }
   };
 
+  const handleUndoSubmission = async () => {
+    if (!timesheet || !currentUser) return;
+
+    setLoading(true);
+
+    try {
+      const updatedTimesheet: any = {
+        employee_id: timesheet.employee_id,
+        month: timesheet.month,
+        year: timesheet.year,
+        days: timesheet.days,
+        status: 'Draft' as const,
+        submitted_at: null,
+      };
+
+      if (timesheet.id) {
+        updatedTimesheet.id = timesheet.id;
+      }
+
+      const { error } = await supabase
+        .from('timesheets')
+        .upsert(updatedTimesheet, {
+          onConflict: 'employee_id,month,year',
+        });
+
+      if (error) throw error;
+
+      toast({
+        title: 'Submission undone successfully',
+        description: 'You can now edit your timesheet',
+        status: 'success',
+        duration: 3000,
+      });
+
+      await fetchTimesheet();
+    } catch (error: any) {
+      toast({
+        title: 'Error undoing submission',
+        description: error.message,
+        status: 'error',
+        duration: 5000,
+      });
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const canUndoSubmission = () => {
+    if (!timesheet || timesheet.status !== 'Submitted' || !timesheet.submitted_at) {
+      return false;
+    }
+
+    // Calculate the end of the timesheet period (last day of the month)
+    const periodEnd = new Date(year, month + 1, 0);
+    // Add 7 days to the period end
+    const undoDeadline = new Date(periodEnd);
+    undoDeadline.setDate(undoDeadline.getDate() + 7);
+
+    const now = new Date();
+    return now <= undoDeadline;
+  };
+
+  const handleDownload = async (format: 'pdf' | 'csv') => {
+    if (!timesheet || !currentUser || !userData) return;
+
+    try {
+      // Get manager details if available
+      let managerName = 'N/A';
+      if (userData.managerId) {
+        const { data: managerData } = await supabase
+          .from('users')
+          .select('display_name, email')
+          .eq('id', userData.managerId)
+          .single();
+
+        if (managerData) {
+          managerName = managerData.display_name || managerData.email;
+        }
+      }
+
+      if (format === 'csv') {
+        downloadCSV(managerName);
+      } else {
+        downloadPDF(managerName);
+      }
+    } catch (error: any) {
+      toast({
+        title: 'Error downloading timesheet',
+        description: error.message,
+        status: 'error',
+        duration: 5000,
+      });
+    }
+  };
+
+  const downloadCSV = (managerName: string) => {
+    if (!timesheet || !userData) return;
+
+    const monthName = months[month];
+    const employeeName = userData.displayName || userData.email;
+
+    let csvContent = 'data:text/csv;charset=utf-8,';
+    csvContent += `Employee Name,${employeeName}\n`;
+    csvContent += `Manager Name,${managerName}\n`;
+    csvContent += `Month,${monthName} ${year}\n`;
+    csvContent += `Status,${timesheet.status}\n`;
+    csvContent += `\n`;
+    csvContent += 'Date,Day,Type,Description\n';
+
+    for (let day = 1; day <= daysInMonth; day++) {
+      const dayData = timesheet.days[day];
+      const dayName = getDayName(day);
+      const type = dayData?.type || 'Full Day';
+      const description = dayData?.description || '';
+      csvContent += `${day},${dayName},${type},"${description.replace(/"/g, '""')}"\n`;
+    }
+
+    const encodedUri = encodeURI(csvContent);
+    const link = document.createElement('a');
+    link.setAttribute('href', encodedUri);
+    link.setAttribute('download', `timesheet_${monthName}_${year}.csv`);
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+
+    toast({
+      title: 'Timesheet downloaded',
+      description: 'CSV file has been saved',
+      status: 'success',
+      duration: 3000,
+    });
+  };
+
+  const downloadPDF = (managerName: string) => {
+    if (!timesheet || !userData) return;
+
+    // For PDF, we'll create a printable HTML view that can be printed to PDF
+    const monthName = months[month];
+    const employeeName = userData.displayName || userData.email;
+
+    const printWindow = window.open('', '_blank');
+    if (!printWindow) {
+      toast({
+        title: 'Popup blocked',
+        description: 'Please allow popups to download PDF',
+        status: 'error',
+        duration: 5000,
+      });
+      return;
+    }
+
+    let tableRows = '';
+    for (let day = 1; day <= daysInMonth; day++) {
+      const dayData = timesheet.days[day];
+      const dayName = getDayName(day);
+      const type = dayData?.type || 'Full Day';
+      const description = dayData?.description || '';
+      const isWeekendDay = isWeekend(day);
+      tableRows += `
+        <tr style="background-color: ${isWeekendDay ? '#ffe0e0' : 'white'};">
+          <td style="border: 1px solid #ddd; padding: 8px;">${day}</td>
+          <td style="border: 1px solid #ddd; padding: 8px;">${dayName}</td>
+          <td style="border: 1px solid #ddd; padding: 8px;">${type}</td>
+          <td style="border: 1px solid #ddd; padding: 8px;">${description}</td>
+        </tr>
+      `;
+    }
+
+    printWindow.document.write(`
+      <!DOCTYPE html>
+      <html>
+        <head>
+          <title>Timesheet - ${monthName} ${year}</title>
+          <style>
+            body { font-family: Arial, sans-serif; padding: 20px; }
+            h1 { color: #333; }
+            .info { margin-bottom: 20px; }
+            .info p { margin: 5px 0; }
+            table { width: 100%; border-collapse: collapse; margin-top: 20px; }
+            th { background-color: #667eea; color: white; padding: 12px; text-align: left; border: 1px solid #ddd; }
+            td { border: 1px solid #ddd; padding: 8px; }
+            @media print {
+              body { padding: 0; }
+            }
+          </style>
+        </head>
+        <body>
+          <h1>Timesheet - ${monthName} ${year}</h1>
+          <div class="info">
+            <p><strong>Employee Name:</strong> ${employeeName}</p>
+            <p><strong>Manager Name:</strong> ${managerName}</p>
+            <p><strong>Status:</strong> ${timesheet.status}</p>
+          </div>
+          <table>
+            <thead>
+              <tr>
+                <th>Date</th>
+                <th>Day</th>
+                <th>Type</th>
+                <th>Description</th>
+              </tr>
+            </thead>
+            <tbody>
+              ${tableRows}
+            </tbody>
+          </table>
+          <script>
+            window.onload = function() {
+              window.print();
+              setTimeout(function() { window.close(); }, 100);
+            };
+          </script>
+        </body>
+      </html>
+    `);
+    printWindow.document.close();
+
+    toast({
+      title: 'Print dialog opened',
+      description: 'Save as PDF from the print dialog',
+      status: 'info',
+      duration: 3000,
+    });
+  };
+
   const months = [
     'January',
     'February',
@@ -189,13 +420,47 @@ const Timesheet: React.FC = () => {
   return (
     <Layout>
       <VStack spacing={6} align="stretch">
-        <Box display="flex" justifyContent="space-between" alignItems="center">
+        <Box display="flex" justifyContent="space-between" alignItems="center" flexWrap="wrap" gap={4}>
           <Heading size="lg" color="white">Timesheet</Heading>
-          {timesheet?.status === 'Submitted' && (
-            <Badge colorScheme="green" fontSize="md" px={3} py={1}>
-              Submitted
-            </Badge>
-          )}
+          <HStack spacing={3}>
+            {timesheet?.status === 'Submitted' && (
+              <Badge colorScheme="green" fontSize="md" px={3} py={1}>
+                Submitted
+              </Badge>
+            )}
+            <Menu>
+              <MenuButton
+                as={Button}
+                rightIcon={<ChevronDownIcon />}
+                leftIcon={<DownloadIcon />}
+                size="sm"
+                variant="outline"
+                color="whiteAlpha.900"
+                borderColor="rgba(255, 255, 255, 0.2)"
+                _hover={{ bg: 'rgba(255, 255, 255, 0.1)', borderColor: 'brand.400' }}
+              >
+                Download
+              </MenuButton>
+              <MenuList bg="#1a1a1a" borderColor="rgba(255, 255, 255, 0.2)">
+                <MenuItem
+                  onClick={() => handleDownload('csv')}
+                  bg="#1a1a1a"
+                  _hover={{ bg: 'rgba(255, 255, 255, 0.1)' }}
+                  color="white"
+                >
+                  Download as CSV
+                </MenuItem>
+                <MenuItem
+                  onClick={() => handleDownload('pdf')}
+                  bg="#1a1a1a"
+                  _hover={{ bg: 'rgba(255, 255, 255, 0.1)' }}
+                  color="white"
+                >
+                  Download as PDF
+                </MenuItem>
+              </MenuList>
+            </Menu>
+          </HStack>
         </Box>
 
         <Card bg="rgba(255, 255, 255, 0.05)" borderColor="rgba(255, 255, 255, 0.1)">
@@ -314,6 +579,21 @@ const Timesheet: React.FC = () => {
                   </Button>
                   <Button variant="gradient" onClick={() => handleSave(true)} isLoading={loading}>
                     Submit Timesheet
+                  </Button>
+                </HStack>
+              )}
+              {canUndoSubmission() && (
+                <HStack spacing={4} justify="flex-end">
+                  <Text fontSize="sm" color="yellow.400">
+                    You can undo this submission within 7 days of month end
+                  </Text>
+                  <Button
+                    onClick={handleUndoSubmission}
+                    isLoading={loading}
+                    colorScheme="yellow"
+                    variant="outline"
+                  >
+                    Undo Submission
                   </Button>
                 </HStack>
               )}

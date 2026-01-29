@@ -46,6 +46,7 @@ export const Layout: React.FC<LayoutProps> = ({ children }) => {
       { label: 'Profile', path: '/profile' },
       { label: 'Timesheet', path: '/timesheet' },
       { label: 'Leaves', path: '/leaves' },
+      { label: 'Holidays', path: '/holidays' },
     ];
 
     if (userData?.role === 'Manager' || userData?.role === 'Administrator') {

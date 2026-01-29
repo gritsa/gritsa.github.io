@@ -68,6 +68,7 @@ const LeaveManagement: React.FC = () => {
   const [leaveRequests, setLeaveRequests] = useState<LeaveRequest[]>([]);
   const [leaveBalance, setLeaveBalance] = useState<LeaveBalance | null>(null);
   const [loading, setLoading] = useState(false);
+  const [nationalHolidays, setNationalHolidays] = useState<any[]>([]);
   const { isOpen, onOpen, onClose } = useDisclosure();
   const toast = useToast();
 
@@ -76,11 +77,31 @@ const LeaveManagement: React.FC = () => {
     fromDate: '',
     toDate: '',
     reason: '',
+    selectedHolidayId: '',
   });
 
   useEffect(() => {
     fetchData();
+    fetchNationalHolidays();
   }, [currentUser]);
+
+  const fetchNationalHolidays = async () => {
+    try {
+      const currentYear = new Date().getFullYear();
+      const { data, error } = await supabase
+        .from('national_holidays')
+        .select('*')
+        .eq('year', currentYear)
+        .eq('is_active', true)
+        .order('date', { ascending: true });
+
+      if (error) throw error;
+
+      setNationalHolidays(data || []);
+    } catch (error) {
+      console.error('Error fetching national holidays:', error);
+    }
+  };
 
   const fetchData = async () => {
     if (!currentUser) return;
@@ -157,25 +178,52 @@ const LeaveManagement: React.FC = () => {
   const handleSubmit = async () => {
     if (!currentUser || !userData) return;
 
-    const leaveDays = calculateLeaveDays();
-
-    if (formData.leaveType !== 'National Holiday') {
-      const remaining = (leaveBalance?.paid_and_sick || 18) - (leaveBalance?.used_paid_and_sick || 0);
-      if (leaveDays > remaining) {
+    // For National Holidays, validate selection
+    if (formData.leaveType === 'National Holiday') {
+      if (!formData.selectedHolidayId) {
         toast({
-          title: 'Insufficient leave balance',
-          description: `You only have ${remaining} paid/sick leaves remaining`,
+          title: 'Please select a holiday',
+          description: 'You must select a national holiday from the list',
+          status: 'error',
+          duration: 5000,
+        });
+        return;
+      }
+
+      const selectedHoliday = nationalHolidays.find(h => h.id === formData.selectedHolidayId);
+      if (!selectedHoliday) {
+        toast({
+          title: 'Invalid holiday selection',
+          status: 'error',
+          duration: 5000,
+        });
+        return;
+      }
+
+      // Check if already availed
+      const existingRequest = leaveRequests.find(
+        req => req.leave_type === 'National Holiday' &&
+               req.from_date === selectedHoliday.date &&
+               req.status === 'Approved'
+      );
+
+      if (existingRequest) {
+        toast({
+          title: 'Holiday already availed',
+          description: 'You have already availed this national holiday',
           status: 'error',
           duration: 5000,
         });
         return;
       }
     } else {
-      const remaining = (leaveBalance?.national_holidays || 10) - (leaveBalance?.used_national_holidays || 0);
+      // For Paid/Sick leaves, check balance
+      const leaveDays = calculateLeaveDays();
+      const remaining = (leaveBalance?.paid_and_sick || 18) - (leaveBalance?.used_paid_and_sick || 0);
       if (leaveDays > remaining) {
         toast({
-          title: 'Insufficient holiday balance',
-          description: `You only have ${remaining} national holidays remaining`,
+          title: 'Insufficient leave balance',
+          description: `You only have ${remaining} paid/sick leaves remaining`,
           status: 'error',
           duration: 5000,
         });
@@ -187,17 +235,53 @@ const LeaveManagement: React.FC = () => {
 
     try {
       let managerId = userData.managerId;
+      let status: 'Pending' | 'Approved' = 'Pending';
+      let autoApprovedAt: string | undefined;
 
-      if (userData.role === 'Manager') {
-        const { data: adminsData } = await supabase
-          .from('users')
-          .select('id')
-          .eq('role', 'Administrator')
-          .limit(1)
-          .single();
+      // National Holidays are auto-approved
+      if (formData.leaveType === 'National Holiday') {
+        status = 'Approved';
+        autoApprovedAt = new Date().toISOString();
 
-        if (adminsData) {
-          managerId = adminsData.id;
+        // Update balance immediately for national holidays
+        if (leaveBalance) {
+          const { error: balanceError } = await supabase
+            .from('leave_balances')
+            .update({
+              used_national_holidays: (leaveBalance.used_national_holidays || 0) + 1,
+            })
+            .eq('user_id', currentUser.id)
+            .eq('year', new Date().getFullYear());
+
+          if (balanceError) throw balanceError;
+        }
+      } else {
+        // Regular leaves need manager approval
+        if (userData.role === 'Manager') {
+          const { data: adminsData } = await supabase
+            .from('users')
+            .select('id')
+            .eq('role', 'Administrator')
+            .limit(1)
+            .single();
+
+          if (adminsData) {
+            managerId = adminsData.id;
+          }
+        }
+      }
+
+      // Get holiday details if applicable
+      let fromDate = formData.fromDate;
+      let toDate = formData.toDate;
+      let reason = formData.reason;
+
+      if (formData.leaveType === 'National Holiday' && formData.selectedHolidayId) {
+        const selectedHoliday = nationalHolidays.find(h => h.id === formData.selectedHolidayId);
+        if (selectedHoliday) {
+          fromDate = selectedHoliday.date;
+          toDate = selectedHoliday.date;
+          reason = selectedHoliday.name;
         }
       }
 
@@ -206,11 +290,12 @@ const LeaveManagement: React.FC = () => {
         employee_name: userData.displayName || userData.email || '',
         manager_id: managerId,
         leave_type: formData.leaveType,
-        from_date: formData.fromDate,
-        to_date: formData.toDate,
-        reason: formData.reason,
-        status: 'Pending',
+        from_date: fromDate,
+        to_date: toDate,
+        reason: reason,
+        status: status,
         applied_at: new Date().toISOString(),
+        ...(autoApprovedAt && { reviewed_at: autoApprovedAt }),
       };
 
       const { error } = await supabase
@@ -220,8 +305,10 @@ const LeaveManagement: React.FC = () => {
       if (error) throw error;
 
       toast({
-        title: 'Leave request submitted',
-        description: 'Your leave request has been submitted for approval',
+        title: status === 'Approved' ? 'Holiday availed successfully' : 'Leave request submitted',
+        description: status === 'Approved'
+          ? 'The national holiday has been added to your calendar'
+          : 'Your leave request has been submitted for approval',
         status: 'success',
         duration: 3000,
       });
@@ -231,13 +318,14 @@ const LeaveManagement: React.FC = () => {
         fromDate: '',
         toDate: '',
         reason: '',
+        selectedHolidayId: '',
       });
 
       await fetchData();
       onClose();
     } catch (error: any) {
       toast({
-        title: 'Error submitting leave request',
+        title: 'Error submitting request',
         description: error.message,
         status: 'error',
         duration: 5000,
@@ -354,44 +442,96 @@ const LeaveManagement: React.FC = () => {
                 </Select>
               </FormControl>
 
-              <FormControl isRequired>
-                <FormLabel>From Date</FormLabel>
-                <Input
-                  type="date"
-                  name="fromDate"
-                  value={formData.fromDate}
-                  onChange={handleInputChange}
-                />
-              </FormControl>
+              {formData.leaveType === 'National Holiday' ? (
+                <>
+                  <FormControl isRequired>
+                    <FormLabel>Select Holiday</FormLabel>
+                    <Select
+                      name="selectedHolidayId"
+                      value={formData.selectedHolidayId}
+                      onChange={handleInputChange}
+                      placeholder="Choose a holiday"
+                    >
+                      {nationalHolidays.map((holiday) => {
+                        const alreadyAvailed = leaveRequests.some(
+                          req => req.leave_type === 'National Holiday' &&
+                                 req.from_date === holiday.date &&
+                                 req.status === 'Approved'
+                        );
+                        return (
+                          <option
+                            key={holiday.id}
+                            value={holiday.id}
+                            disabled={alreadyAvailed}
+                          >
+                            {holiday.name} - {new Date(holiday.date).toLocaleDateString('en-IN', {
+                              day: 'numeric',
+                              month: 'long',
+                              weekday: 'short'
+                            })}
+                            {alreadyAvailed ? ' (Already Availed)' : ''}
+                          </option>
+                        );
+                      })}
+                    </Select>
+                  </FormControl>
 
-              <FormControl isRequired>
-                <FormLabel>To Date</FormLabel>
-                <Input
-                  type="date"
-                  name="toDate"
-                  value={formData.toDate}
-                  onChange={handleInputChange}
-                />
-              </FormControl>
+                  {nationalHolidays.length === 0 && (
+                    <Box p={3} bg="yellow.50" borderRadius="md" w="full">
+                      <Text fontSize="sm" color="yellow.800">
+                        No national holidays configured for {new Date().getFullYear()}. Please contact admin.
+                      </Text>
+                    </Box>
+                  )}
 
-              {formData.fromDate && formData.toDate && (
-                <Box p={3} bg="blue.50" borderRadius="md" w="full">
-                  <Text fontSize="sm" fontWeight="bold">
-                    Total Days: {calculateLeaveDays()}
-                  </Text>
-                </Box>
+                  <Box p={3} bg="blue.50" borderRadius="md" w="full">
+                    <Text fontSize="sm" fontWeight="bold" color="blue.800">
+                      ℹ️ National holidays are automatically approved
+                    </Text>
+                  </Box>
+                </>
+              ) : (
+                <>
+                  <FormControl isRequired>
+                    <FormLabel>From Date</FormLabel>
+                    <Input
+                      type="date"
+                      name="fromDate"
+                      value={formData.fromDate}
+                      onChange={handleInputChange}
+                    />
+                  </FormControl>
+
+                  <FormControl isRequired>
+                    <FormLabel>To Date</FormLabel>
+                    <Input
+                      type="date"
+                      name="toDate"
+                      value={formData.toDate}
+                      onChange={handleInputChange}
+                    />
+                  </FormControl>
+
+                  {formData.fromDate && formData.toDate && (
+                    <Box p={3} bg="blue.50" borderRadius="md" w="full">
+                      <Text fontSize="sm" fontWeight="bold">
+                        Total Days: {calculateLeaveDays()}
+                      </Text>
+                    </Box>
+                  )}
+
+                  <FormControl isRequired>
+                    <FormLabel>Reason</FormLabel>
+                    <Textarea
+                      name="reason"
+                      value={formData.reason}
+                      onChange={handleInputChange}
+                      placeholder="Please provide a reason for your leave"
+                      rows={4}
+                    />
+                  </FormControl>
+                </>
               )}
-
-              <FormControl isRequired>
-                <FormLabel>Reason</FormLabel>
-                <Textarea
-                  name="reason"
-                  value={formData.reason}
-                  onChange={handleInputChange}
-                  placeholder="Please provide a reason for your leave"
-                  rows={4}
-                />
-              </FormControl>
             </VStack>
           </ModalBody>
 

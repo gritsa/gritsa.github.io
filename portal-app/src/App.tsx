@@ -12,6 +12,7 @@ import CompleteProfile from './pages/CompleteProfile';
 import EmployeeProfile from './pages/EmployeeProfile';
 import Timesheet from './pages/Timesheet';
 import LeaveManagement from './pages/LeaveManagement';
+import NationalHolidays from './pages/NationalHolidays';
 import AdminDashboard from './pages/admin/AdminDashboard';
 import ManagerDashboard from './pages/manager/ManagerDashboard';
 import Unauthorized from './pages/Unauthorized';
@@ -67,6 +68,15 @@ function App() {
               element={
                 <ProtectedRoute requireProfileComplete>
                   <LeaveManagement />
+                </ProtectedRoute>
+              }
+            />
+
+            <Route
+              path="/holidays"
+              element={
+                <ProtectedRoute requireProfileComplete>
+                  <NationalHolidays />
                 </ProtectedRoute>
               }
             />
