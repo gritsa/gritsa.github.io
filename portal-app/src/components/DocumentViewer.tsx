@@ -57,6 +57,7 @@ const DocumentViewer: React.FC<DocumentViewerProps> = ({ isOpen, onClose, filePa
       const response = await fetch(url, {
         method: 'GET',
         headers: {
+          'Authorization': `Bearer ${token}`,
           'apikey': supabaseAnonKey,
         },
       });
@@ -98,6 +99,7 @@ const DocumentViewer: React.FC<DocumentViewerProps> = ({ isOpen, onClose, filePa
       const response = await fetch(url, {
         method: 'GET',
         headers: {
+          'Authorization': `Bearer ${token}`,
           'apikey': supabaseAnonKey,
         },
       });
