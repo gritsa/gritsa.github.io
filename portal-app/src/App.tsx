@@ -10,11 +10,13 @@ import Signup from './pages/Signup';
 import Dashboard from './pages/Dashboard';
 import CompleteProfile from './pages/CompleteProfile';
 import EmployeeProfile from './pages/EmployeeProfile';
+import MySpace from './pages/MySpace';
 import Timesheet from './pages/Timesheet';
 import LeaveManagement from './pages/LeaveManagement';
 import NationalHolidays from './pages/NationalHolidays';
 import AdminDashboard from './pages/admin/AdminDashboard';
 import ManagerDashboard from './pages/manager/ManagerDashboard';
+import HRFinanceDashboard from './pages/hr-finance/HRFinanceDashboard';
 import Unauthorized from './pages/Unauthorized';
 
 function App() {
@@ -55,6 +57,15 @@ function App() {
             />
 
             <Route
+              path="/my-space"
+              element={
+                <ProtectedRoute requireProfileComplete>
+                  <MySpace />
+                </ProtectedRoute>
+              }
+            />
+
+            <Route
               path="/timesheet"
               element={
                 <ProtectedRoute requireProfileComplete>
@@ -77,6 +88,15 @@ function App() {
               element={
                 <ProtectedRoute requireProfileComplete>
                   <NationalHolidays />
+                </ProtectedRoute>
+              }
+            />
+
+            <Route
+              path="/hr-finance"
+              element={
+                <ProtectedRoute requiredRoles={['HR-Finance', 'Administrator']} requireProfileComplete>
+                  <HRFinanceDashboard />
                 </ProtectedRoute>
               }
             />

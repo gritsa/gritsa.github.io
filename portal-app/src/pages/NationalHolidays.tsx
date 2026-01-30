@@ -313,7 +313,12 @@ const NationalHolidays: React.FC = () => {
     <Layout>
       <VStack spacing={6} align="stretch">
         <Box display="flex" justifyContent="space-between" alignItems="center" flexWrap="wrap" gap={4}>
-          <Heading size="lg" color="white">National Holidays</Heading>
+          <Box>
+            <Heading size="lg" color="white">National Holidays</Heading>
+            <Text fontSize="sm" color="whiteAlpha.700" mt={2}>
+              Employees can avail a maximum of 10 national holidays in a 365-day period
+            </Text>
+          </Box>
           <HStack spacing={3}>
             <Select
               value={selectedYear}

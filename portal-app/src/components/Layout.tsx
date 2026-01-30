@@ -43,11 +43,15 @@ export const Layout: React.FC<LayoutProps> = ({ children }) => {
   const getNavigationItems = () => {
     const items = [
       { label: 'Dashboard', path: '/' },
-      { label: 'Profile', path: '/profile' },
+      { label: 'My Space', path: '/my-space' },
       { label: 'Timesheet', path: '/timesheet' },
       { label: 'Leaves', path: '/leaves' },
       { label: 'Holidays', path: '/holidays' },
     ];
+
+    if (userData?.role === 'HR-Finance' || userData?.role === 'Administrator') {
+      items.push({ label: 'HR & Finance', path: '/hr-finance' });
+    }
 
     if (userData?.role === 'Manager' || userData?.role === 'Administrator') {
       items.push({ label: 'Manager', path: '/manager' });
