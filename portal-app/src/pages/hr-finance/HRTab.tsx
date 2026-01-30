@@ -32,6 +32,8 @@ const HRTab: React.FC<HRTabProps> = ({ employeeId, onUpdate }) => {
     fullName: '',
     email: '',
     phone: '',
+    employeeId: '',
+    department: '',
     designation: '',
     employmentType: '' as EmploymentType | '',
     managerId: '',
@@ -73,6 +75,8 @@ const HRTab: React.FC<HRTabProps> = ({ employeeId, onUpdate }) => {
         fullName: profileData?.full_name || '',
         email: userData?.email || '',
         phone: profileData?.phone || '',
+        employeeId: profileData?.employee_id || '',
+        department: profileData?.department || '',
         designation: profileData?.designation || '',
         employmentType: (profileData?.employment_type as EmploymentType) || '',
         managerId: userData?.manager_id || '',
@@ -137,6 +141,8 @@ const HRTab: React.FC<HRTabProps> = ({ employeeId, onUpdate }) => {
           user_id: employeeId,
           full_name: formData.fullName,
           phone: formData.phone,
+          employee_id: formData.employeeId || null,
+          department: formData.department || null,
           designation: formData.designation || null,
           employment_type: formData.employmentType || null,
           date_of_birth: formData.dateOfBirth || null,
@@ -286,6 +292,30 @@ const HRTab: React.FC<HRTabProps> = ({ employeeId, onUpdate }) => {
           <Heading size="sm" mb={4} color="white">Employment Details</Heading>
           <SimpleGrid columns={{ base: 1, md: 3 }} spacing={4}>
             <FormControl>
+              <FormLabel color="whiteAlpha.900">Employee ID</FormLabel>
+              <Input
+                variant="filled"
+                name="employeeId"
+                value={formData.employeeId}
+                onChange={handleInputChange}
+                placeholder="e.g., EMP001"
+                color="white"
+              />
+            </FormControl>
+
+            <FormControl>
+              <FormLabel color="whiteAlpha.900">Department</FormLabel>
+              <Input
+                variant="filled"
+                name="department"
+                value={formData.department}
+                onChange={handleInputChange}
+                placeholder="e.g., Engineering"
+                color="white"
+              />
+            </FormControl>
+
+            <FormControl>
               <FormLabel color="whiteAlpha.900">Designation</FormLabel>
               <Input
                 variant="filled"
@@ -311,6 +341,18 @@ const HRTab: React.FC<HRTabProps> = ({ employeeId, onUpdate }) => {
                 <option value="Permanent">Permanent</option>
                 <option value="Contract">Contract</option>
               </Select>
+            </FormControl>
+
+            <FormControl>
+              <FormLabel color="whiteAlpha.900">Date of Joining</FormLabel>
+              <Input
+                variant="filled"
+                type="date"
+                name="joiningDate"
+                value={formData.joiningDate}
+                onChange={handleInputChange}
+                color="white"
+              />
             </FormControl>
 
             <FormControl>
