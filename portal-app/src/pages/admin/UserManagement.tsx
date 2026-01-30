@@ -63,7 +63,7 @@ const UserManagement: React.FC = () => {
         setUsers(data);
 
         const managerUsers = data.filter(
-          (u) => u.role === 'Manager' || u.role === 'Administrator'
+          (u) => u.role === 'Manager' || u.role === 'Administrator' || u.role === 'HR-Finance'
         );
         setManagers(managerUsers);
       }
@@ -121,6 +121,8 @@ const UserManagement: React.FC = () => {
         return 'purple';
       case 'Manager':
         return 'blue';
+      case 'HR-Finance':
+        return 'orange';
       default:
         return 'green';
     }
@@ -192,6 +194,7 @@ const UserManagement: React.FC = () => {
                 <Select value={newRole} onChange={(e) => setNewRole(e.target.value as UserRole)}>
                   <option value="Employee">Employee</option>
                   <option value="Manager">Manager</option>
+                  <option value="HR-Finance">HR-Finance</option>
                   <option value="Administrator">Administrator</option>
                 </Select>
               </FormControl>
