@@ -28,11 +28,23 @@ import {
   HStack,
   IconButton,
 } from '@chakra-ui/react';
-import { DownloadIcon, ViewIcon } from '@chakra-ui/icons';
+import { DownloadIcon, ViewIcon, AddIcon } from '@chakra-ui/icons';
 import { Layout } from '../components/Layout';
 import { useAuth } from '../contexts/AuthContext';
 import { supabase } from '../config/supabase';
 import type { Payslip, EmployeeDocument } from '../types';
+
+interface PersonalDocument {
+  id: string;
+  user_id: string;
+  document_name: string;
+  document_category: string | null;
+  file_path: string;
+  file_size: number | null;
+  uploaded_at: string;
+  created_at: string;
+  updated_at: string;
+}
 
 interface ProfileFormData {
   fullName: string;
@@ -56,7 +68,11 @@ const MySpace: React.FC = () => {
   const [profile, setProfile] = useState<any>(null);
   const [payslips, setPayslips] = useState<Payslip[]>([]);
   const [documents, setDocuments] = useState<EmployeeDocument[]>([]);
+  const [personalDocuments, setPersonalDocuments] = useState<PersonalDocument[]>([]);
   const [selectedYear, setSelectedYear] = useState(new Date().getFullYear());
+  const [uploadingPersonalDoc, setUploadingPersonalDoc] = useState(false);
+  const [personalDocFile, setPersonalDocFile] = useState<File | null>(null);
+  const [personalDocDescription, setPersonalDocDescription] = useState('');
   const toast = useToast();
 
   const [formData, setFormData] = useState<ProfileFormData>({
@@ -79,6 +95,7 @@ const MySpace: React.FC = () => {
     fetchProfile();
     fetchPayslips();
     fetchDocuments();
+    fetchPersonalDocuments();
   }, [currentUser]);
 
   const fetchProfile = async () => {
@@ -148,6 +165,23 @@ const MySpace: React.FC = () => {
       setDocuments(data || []);
     } catch (error: any) {
       console.error('Error fetching documents:', error);
+    }
+  };
+
+  const fetchPersonalDocuments = async () => {
+    if (!currentUser) return;
+
+    try {
+      const { data, error } = await supabase
+        .from('personal_documents')
+        .select('*')
+        .eq('user_id', currentUser.id)
+        .order('uploaded_at', { ascending: false });
+
+      if (error) throw error;
+      setPersonalDocuments(data || []);
+    } catch (error: any) {
+      console.error('Error fetching personal documents:', error);
     }
   };
 
@@ -265,6 +299,83 @@ const MySpace: React.FC = () => {
         status: 'error',
         duration: 5000,
       });
+    }
+  };
+
+  const handleUploadPersonalDocument = async () => {
+    if (!currentUser || !personalDocFile || !personalDocDescription.trim()) {
+      toast({
+        title: 'Please provide both a file and description',
+        status: 'warning',
+        duration: 3000,
+      });
+      return;
+    }
+
+    // Check file type
+    const allowedTypes = [
+      'image/jpeg', 'image/jpg', 'image/png', 'image/gif', 'image/webp',
+      'application/pdf',
+      'application/msword',
+      'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+      'application/vnd.ms-excel',
+      'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
+    ];
+
+    if (!allowedTypes.includes(personalDocFile.type)) {
+      toast({
+        title: 'Invalid file type',
+        description: 'Only images and documents (PDF, Word, Excel) are allowed',
+        status: 'error',
+        duration: 5000,
+      });
+      return;
+    }
+
+    setUploadingPersonalDoc(true);
+
+    try {
+      // Upload file to storage
+      const fileExt = personalDocFile.name.split('.').pop();
+      const fileName = `${currentUser.id}/${Date.now()}_${personalDocDescription.replace(/[^a-zA-Z0-9]/g, '_')}.${fileExt}`;
+
+      const { error: uploadError } = await supabase.storage
+        .from('documents')
+        .upload(fileName, personalDocFile);
+
+      if (uploadError) throw uploadError;
+
+      // Create document record
+      const { error: dbError } = await supabase
+        .from('personal_documents')
+        .insert({
+          user_id: currentUser.id,
+          document_name: personalDocDescription,
+          file_path: fileName,
+          file_size: personalDocFile.size,
+        });
+
+      if (dbError) throw dbError;
+
+      toast({
+        title: 'Document uploaded successfully',
+        status: 'success',
+        duration: 3000,
+      });
+
+      // Reset form
+      setPersonalDocFile(null);
+      setPersonalDocDescription('');
+      await fetchPersonalDocuments();
+    } catch (error: any) {
+      toast({
+        title: 'Error uploading document',
+        description: error.message,
+        status: 'error',
+        duration: 5000,
+      });
+    } finally {
+      setUploadingPersonalDoc(false);
     }
   };
 
@@ -546,22 +657,33 @@ const MySpace: React.FC = () => {
                     <SimpleGrid columns={{ base: 1, md: 2 }} spacing={4}>
                       <FormControl>
                         <FormLabel color="whiteAlpha.900">PAN Card</FormLabel>
-                        <Input
-                          type="file"
-                          accept="image/*,application/pdf"
-                          onChange={(e) => handleFileChange(e, 'panCardFile')}
-                          sx={{
-                            '::file-selector-button': {
-                              bg: 'brand.500',
-                              color: 'white',
-                              border: 'none',
-                              borderRadius: 'md',
-                              padding: '8px 16px',
-                              cursor: 'pointer',
-                              mr: 2,
-                            },
-                          }}
-                        />
+                        <HStack spacing={2}>
+                          <Input
+                            type="file"
+                            accept="image/*,application/pdf"
+                            onChange={(e) => handleFileChange(e, 'panCardFile')}
+                            sx={{
+                              '::file-selector-button': {
+                                bg: 'brand.500',
+                                color: 'white',
+                                border: 'none',
+                                borderRadius: 'md',
+                                padding: '8px 16px',
+                                cursor: 'pointer',
+                                mr: 2,
+                              },
+                            }}
+                          />
+                          {profile?.pan_card_url && (
+                            <IconButton
+                              aria-label="View PAN card"
+                              icon={<ViewIcon />}
+                              size="sm"
+                              colorScheme="blue"
+                              onClick={() => viewDocument(profile.pan_card_url)}
+                            />
+                          )}
+                        </HStack>
                         {profile?.pan_card_url && (
                           <Text fontSize="sm" color="green.400" mt={2}>
                             ✓ Document uploaded
@@ -571,22 +693,33 @@ const MySpace: React.FC = () => {
 
                       <FormControl>
                         <FormLabel color="whiteAlpha.900">Aadhaar Card</FormLabel>
-                        <Input
-                          type="file"
-                          accept="image/*,application/pdf"
-                          onChange={(e) => handleFileChange(e, 'aadhaarCardFile')}
-                          sx={{
-                            '::file-selector-button': {
-                              bg: 'brand.500',
-                              color: 'white',
-                              border: 'none',
-                              borderRadius: 'md',
-                              padding: '8px 16px',
-                              cursor: 'pointer',
-                              mr: 2,
-                            },
-                          }}
-                        />
+                        <HStack spacing={2}>
+                          <Input
+                            type="file"
+                            accept="image/*,application/pdf"
+                            onChange={(e) => handleFileChange(e, 'aadhaarCardFile')}
+                            sx={{
+                              '::file-selector-button': {
+                                bg: 'brand.500',
+                                color: 'white',
+                                border: 'none',
+                                borderRadius: 'md',
+                                padding: '8px 16px',
+                                cursor: 'pointer',
+                                mr: 2,
+                              },
+                            }}
+                          />
+                          {profile?.aadhaar_card_url && (
+                            <IconButton
+                              aria-label="View Aadhaar card"
+                              icon={<ViewIcon />}
+                              size="sm"
+                              colorScheme="blue"
+                              onClick={() => viewDocument(profile.aadhaar_card_url)}
+                            />
+                          )}
+                        </HStack>
                         {profile?.aadhaar_card_url && (
                           <Text fontSize="sm" color="green.400" mt={2}>
                             ✓ Document uploaded
@@ -661,6 +794,95 @@ const MySpace: React.FC = () => {
             {/* Documents Tab */}
             <TabPanel>
               <VStack spacing={6} align="stretch">
+                {/* Personal Documents Upload Section */}
+                <Card bg="rgba(255, 255, 255, 0.05)" borderColor="rgba(255, 255, 255, 0.1)">
+                  <CardBody>
+                    <Heading size="md" mb={4} color="white">Upload Personal Documents</Heading>
+                    <VStack spacing={4} align="stretch">
+                      <FormControl isRequired>
+                        <FormLabel color="whiteAlpha.900">Document Description</FormLabel>
+                        <Input
+                          variant="filled"
+                          placeholder="e.g., Passport, Educational Certificate, etc."
+                          value={personalDocDescription}
+                          onChange={(e) => setPersonalDocDescription(e.target.value)}
+                          color="white"
+                        />
+                      </FormControl>
+
+                      <FormControl isRequired>
+                        <FormLabel color="whiteAlpha.900">Select File</FormLabel>
+                        <Input
+                          type="file"
+                          accept="image/*,application/pdf,.doc,.docx,.xls,.xlsx"
+                          onChange={(e) => setPersonalDocFile(e.target.files?.[0] || null)}
+                          sx={{
+                            '::file-selector-button': {
+                              bg: 'brand.500',
+                              color: 'white',
+                              border: 'none',
+                              borderRadius: 'md',
+                              padding: '8px 16px',
+                              cursor: 'pointer',
+                              mr: 2,
+                            },
+                          }}
+                        />
+                        <Text fontSize="sm" color="whiteAlpha.600" mt={2}>
+                          Allowed: Images (JPG, PNG, GIF) and Documents (PDF, Word, Excel)
+                        </Text>
+                      </FormControl>
+
+                      <Button
+                        leftIcon={<AddIcon />}
+                        colorScheme="brand"
+                        onClick={handleUploadPersonalDocument}
+                        isLoading={uploadingPersonalDoc}
+                        isDisabled={!personalDocFile || !personalDocDescription.trim()}
+                      >
+                        Upload Document
+                      </Button>
+                    </VStack>
+                  </CardBody>
+                </Card>
+
+                {/* Personal Documents List */}
+                {personalDocuments.length > 0 && (
+                  <Card bg="rgba(255, 255, 255, 0.05)" borderColor="rgba(255, 255, 255, 0.1)">
+                    <CardBody>
+                      <Heading size="md" mb={4} color="white">My Uploaded Documents</Heading>
+                      <Table size="sm">
+                        <Thead>
+                          <Tr>
+                            <Th color="whiteAlpha.700">Document Name</Th>
+                            <Th color="whiteAlpha.700">Uploaded Date</Th>
+                            <Th color="whiteAlpha.700">Actions</Th>
+                          </Tr>
+                        </Thead>
+                        <Tbody>
+                          {personalDocuments.map((doc) => (
+                            <Tr key={doc.id}>
+                              <Td color="white">{doc.document_name}</Td>
+                              <Td color="white">{new Date(doc.uploaded_at).toLocaleDateString()}</Td>
+                              <Td>
+                                <IconButton
+                                  aria-label="View document"
+                                  icon={<ViewIcon />}
+                                  size="sm"
+                                  variant="ghost"
+                                  color="brand.400"
+                                  onClick={() => viewDocument(doc.file_path)}
+                                />
+                              </Td>
+                            </Tr>
+                          ))}
+                        </Tbody>
+                      </Table>
+                    </CardBody>
+                  </Card>
+                )}
+
+                {/* HR Documents Section */}
                 <HStack justify="space-between">
                   <Heading size="md" color="white">HR Documents</Heading>
                   <Select

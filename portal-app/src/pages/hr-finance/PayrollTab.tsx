@@ -30,7 +30,7 @@ import {
   ModalFooter,
   ModalCloseButton,
 } from '@chakra-ui/react';
-import { AddIcon, EditIcon, ViewIcon } from '@chakra-ui/icons';
+import { AddIcon, EditIcon, ViewIcon, DeleteIcon } from '@chakra-ui/icons';
 import { supabase } from '../../config/supabase';
 import { useAuth } from '../../contexts/AuthContext';
 import type { SalaryStructure, Payslip } from '../../types';
@@ -49,6 +49,9 @@ const PayrollTab: React.FC<PayrollTabProps> = ({ employeeId }) => {
   const { isOpen: isSalaryOpen, onOpen: onSalaryOpen, onClose: onSalaryClose } = useDisclosure();
   const { isOpen: isPayslipOpen, onOpen: onPayslipOpen, onClose: onPayslipClose } = useDisclosure();
   const toast = useToast();
+
+  const [editingSalaryId, setEditingSalaryId] = useState<string | null>(null);
+  const [editingPayslipId, setEditingPayslipId] = useState<string | null>(null);
 
   const [salaryForm, setSalaryForm] = useState({
     effective_from: '',
@@ -99,6 +102,45 @@ const PayrollTab: React.FC<PayrollTabProps> = ({ employeeId }) => {
     }
   };
 
+  const handleEditSalary = (salary: SalaryStructure) => {
+    setEditingSalaryId(salary.id);
+    setSalaryForm({
+      effective_from: salary.effective_from,
+      basic_salary: salary.basic_salary.toString(),
+      hra: salary.hra.toString(),
+      special_allowance: salary.special_allowance.toString(),
+    });
+    onSalaryOpen();
+  };
+
+  const handleDeleteSalary = async (salaryId: string) => {
+    if (!confirm('Are you sure you want to delete this salary structure?')) return;
+
+    try {
+      const { error } = await supabase
+        .from('salary_structures')
+        .delete()
+        .eq('id', salaryId);
+
+      if (error) throw error;
+
+      toast({
+        title: 'Salary structure deleted successfully',
+        status: 'success',
+        duration: 3000,
+      });
+
+      fetchSalaryStructures();
+    } catch (error: any) {
+      toast({
+        title: 'Error deleting salary structure',
+        description: error.message,
+        status: 'error',
+        duration: 5000,
+      });
+    }
+  };
+
   const handleSaveSalaryStructure = async () => {
     if (!currentUser) return;
 
@@ -117,17 +159,34 @@ const PayrollTab: React.FC<PayrollTabProps> = ({ employeeId }) => {
         created_by: currentUser.id,
       };
 
-      const { error } = await supabase
-        .from('salary_structures')
-        .insert([salaryData]);
+      if (editingSalaryId) {
+        // Update existing salary structure
+        const { error } = await supabase
+          .from('salary_structures')
+          .update(salaryData)
+          .eq('id', editingSalaryId);
 
-      if (error) throw error;
+        if (error) throw error;
 
-      toast({
-        title: 'Salary structure created successfully',
-        status: 'success',
-        duration: 3000,
-      });
+        toast({
+          title: 'Salary structure updated successfully',
+          status: 'success',
+          duration: 3000,
+        });
+      } else {
+        // Create new salary structure
+        const { error } = await supabase
+          .from('salary_structures')
+          .insert([salaryData]);
+
+        if (error) throw error;
+
+        toast({
+          title: 'Salary structure created successfully',
+          status: 'success',
+          duration: 3000,
+        });
+      }
 
       setSalaryForm({
         effective_from: '',
@@ -135,12 +194,13 @@ const PayrollTab: React.FC<PayrollTabProps> = ({ employeeId }) => {
         hra: '',
         special_allowance: '',
       });
+      setEditingSalaryId(null);
 
       onSalaryClose();
       fetchSalaryStructures();
     } catch (error: any) {
       toast({
-        title: 'Error creating salary structure',
+        title: editingSalaryId ? 'Error updating salary structure' : 'Error creating salary structure',
         description: error.message,
         status: 'error',
         duration: 5000,
@@ -151,6 +211,21 @@ const PayrollTab: React.FC<PayrollTabProps> = ({ employeeId }) => {
   };
 
   const handleGeneratePayslip = () => {
+    // Check if payslip already exists
+    const existingPayslip = payslips.find(p => p.month === selectedMonth && p.year === selectedYear);
+
+    if (existingPayslip) {
+      // Edit existing payslip
+      setEditingPayslipId(existingPayslip.id);
+      setPayslipForm({
+        gross_salary: existingPayslip.gross_salary,
+        total_deductions: existingPayslip.total_deductions,
+        net_salary: existingPayslip.net_salary,
+      });
+      onPayslipOpen();
+      return;
+    }
+
     // Find active salary structure for the selected month
     const activeSalary = salaryStructures.find(s => {
       const effectiveDate = new Date(s.effective_from);
@@ -171,12 +246,25 @@ const PayrollTab: React.FC<PayrollTabProps> = ({ employeeId }) => {
     // Calculate gross salary
     const gross = activeSalary.basic_salary + activeSalary.hra + activeSalary.special_allowance;
 
+    setEditingPayslipId(null);
     setPayslipForm({
       gross_salary: gross,
       total_deductions: 0,
       net_salary: gross,
     });
 
+    onPayslipOpen();
+  };
+
+  const handleEditPayslip = (payslip: Payslip) => {
+    setEditingPayslipId(payslip.id);
+    setSelectedMonth(payslip.month);
+    setSelectedYear(payslip.year);
+    setPayslipForm({
+      gross_salary: payslip.gross_salary,
+      total_deductions: payslip.total_deductions,
+      net_salary: payslip.net_salary,
+    });
     onPayslipOpen();
   };
 
@@ -209,6 +297,7 @@ const PayrollTab: React.FC<PayrollTabProps> = ({ employeeId }) => {
         duration: 3000,
       });
 
+      setEditingPayslipId(null);
       onPayslipClose();
       fetchPayslips();
     } catch (error: any) {
@@ -284,6 +373,7 @@ const PayrollTab: React.FC<PayrollTabProps> = ({ employeeId }) => {
                   <Th color="whiteAlpha.700">Special</Th>
                   <Th color="whiteAlpha.700">Total</Th>
                   <Th color="whiteAlpha.700">Status</Th>
+                  <Th color="whiteAlpha.700">Actions</Th>
                 </Tr>
               </Thead>
               <Tbody>
@@ -298,6 +388,26 @@ const PayrollTab: React.FC<PayrollTabProps> = ({ employeeId }) => {
                       <Badge colorScheme={salary.is_active ? 'green' : 'gray'}>
                         {salary.is_active ? 'Active' : 'Inactive'}
                       </Badge>
+                    </Td>
+                    <Td>
+                      <HStack spacing={1}>
+                        <IconButton
+                          aria-label="Edit salary structure"
+                          icon={<EditIcon />}
+                          size="xs"
+                          variant="ghost"
+                          color="blue.400"
+                          onClick={() => handleEditSalary(salary)}
+                        />
+                        <IconButton
+                          aria-label="Delete salary structure"
+                          icon={<DeleteIcon />}
+                          size="xs"
+                          variant="ghost"
+                          color="red.400"
+                          onClick={() => handleDeleteSalary(salary.id)}
+                        />
+                      </HStack>
                     </Td>
                   </Tr>
                 ))}
@@ -378,15 +488,25 @@ const PayrollTab: React.FC<PayrollTabProps> = ({ employeeId }) => {
                       </Badge>
                     </Td>
                     <Td>
-                      {payslip.status === 'Draft' && (
-                        <Button
+                      <HStack spacing={1}>
+                        <IconButton
+                          aria-label="Edit payslip"
+                          icon={<EditIcon />}
                           size="xs"
-                          colorScheme="blue"
-                          onClick={() => handleSubmitPayslip(payslip.id)}
-                        >
-                          Submit
-                        </Button>
-                      )}
+                          variant="ghost"
+                          color="blue.400"
+                          onClick={() => handleEditPayslip(payslip)}
+                        />
+                        {payslip.status === 'Draft' && (
+                          <Button
+                            size="xs"
+                            colorScheme="blue"
+                            onClick={() => handleSubmitPayslip(payslip.id)}
+                          >
+                            Submit
+                          </Button>
+                        )}
+                      </HStack>
                     </Td>
                   </Tr>
                 ))}
@@ -400,7 +520,7 @@ const PayrollTab: React.FC<PayrollTabProps> = ({ employeeId }) => {
       <Modal isOpen={isSalaryOpen} onClose={onSalaryClose}>
         <ModalOverlay />
         <ModalContent bg="#1a1a1a" borderColor="rgba(255, 255, 255, 0.1)">
-          <ModalHeader color="white">Add Salary Structure</ModalHeader>
+          <ModalHeader color="white">{editingSalaryId ? 'Edit' : 'Add'} Salary Structure</ModalHeader>
           <ModalCloseButton color="white" />
           <ModalBody>
             <VStack spacing={4}>
@@ -455,7 +575,7 @@ const PayrollTab: React.FC<PayrollTabProps> = ({ employeeId }) => {
               Cancel
             </Button>
             <Button variant="gradient" onClick={handleSaveSalaryStructure} isLoading={loading}>
-              Create
+              {editingSalaryId ? 'Update' : 'Create'}
             </Button>
           </ModalFooter>
         </ModalContent>
@@ -477,9 +597,11 @@ const PayrollTab: React.FC<PayrollTabProps> = ({ employeeId }) => {
                   variant="filled"
                   type="number"
                   value={payslipForm.gross_salary}
-                  isReadOnly
+                  onChange={(e) => setPayslipForm({
+                    ...payslipForm,
+                    gross_salary: parseFloat(e.target.value) || 0,
+                  })}
                   color="white"
-                  bg="rgba(255, 255, 255, 0.05)"
                 />
               </FormControl>
 
