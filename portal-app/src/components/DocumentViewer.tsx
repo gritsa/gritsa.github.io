@@ -56,9 +56,6 @@ const DocumentViewer: React.FC<DocumentViewerProps> = ({ isOpen, onClose, filePa
 
       const response = await fetch(url, {
         method: 'GET',
-        headers: {
-          'Authorization': `Bearer ${token}`,
-        },
       });
 
       if (!response.ok) {
@@ -97,9 +94,6 @@ const DocumentViewer: React.FC<DocumentViewerProps> = ({ isOpen, onClose, filePa
 
       const response = await fetch(url, {
         method: 'GET',
-        headers: {
-          'Authorization': `Bearer ${token}`,
-        },
       });
       if (!response.ok) {
         const errorText = await response.text();
