@@ -52,16 +52,19 @@ const DocumentViewer: React.FC<DocumentViewerProps> = ({ isOpen, onClose, filePa
         throw new Error('Authentication required');
       }
 
-      const url = `${supabaseUrl}/functions/v1/document-proxy?bucket=documents&path=${encodeURIComponent(filePath)}`;
+      const url = `${supabaseUrl}/functions/v1/document-proxy?bucket=documents&path=${encodeURIComponent(filePath)}&token=${token}`;
 
       const response = await fetch(url, {
+        method: 'GET',
         headers: {
           'Authorization': `Bearer ${token}`,
         },
       });
 
       if (!response.ok) {
-        throw new Error(`Failed to load document: ${response.statusText}`);
+        const errorText = await response.text();
+        console.error('Document fetch error:', errorText);
+        throw new Error(`Failed to load document: ${response.status} - ${errorText}`);
       }
 
       const blob = await response.blob();
@@ -90,15 +93,18 @@ const DocumentViewer: React.FC<DocumentViewerProps> = ({ isOpen, onClose, filePa
         throw new Error('Authentication required');
       }
 
-      const url = `${supabaseUrl}/functions/v1/document-proxy?bucket=documents&path=${encodeURIComponent(filePath)}`;
+      const url = `${supabaseUrl}/functions/v1/document-proxy?bucket=documents&path=${encodeURIComponent(filePath)}&token=${token}`;
 
       const response = await fetch(url, {
+        method: 'GET',
         headers: {
           'Authorization': `Bearer ${token}`,
         },
       });
       if (!response.ok) {
-        throw new Error('Failed to download document');
+        const errorText = await response.text();
+        console.error('Document download error:', errorText);
+        throw new Error(`Failed to download document: ${response.status}`);
       }
 
       const blob = await response.blob();

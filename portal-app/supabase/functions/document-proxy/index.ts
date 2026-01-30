@@ -13,34 +13,46 @@ serve(async (req) => {
   }
 
   try {
-    // Parse request URL to get token (can be in query params or Authorization header)
     const url = new URL(req.url)
-    const tokenFromQuery = url.searchParams.get('token')
 
-    let authHeader = req.headers.get('Authorization')
-    if (tokenFromQuery && !authHeader) {
-      authHeader = `Bearer ${tokenFromQuery}`
+    // Get token from query params or Authorization header
+    const tokenFromQuery = url.searchParams.get('token')
+    const authHeader = req.headers.get('Authorization')
+
+    let token = tokenFromQuery
+    if (!token && authHeader) {
+      token = authHeader.replace('Bearer ', '')
     }
 
-    // Create Supabase client
+    if (!token) {
+      return new Response(JSON.stringify({ error: 'Missing authentication token' }), {
+        status: 401,
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+      })
+    }
+
+    // Create Supabase client with the token
     const supabaseClient = createClient(
       Deno.env.get('SUPABASE_URL') ?? '',
       Deno.env.get('SUPABASE_ANON_KEY') ?? '',
       {
         global: {
-          headers: { Authorization: authHeader! },
+          headers: { Authorization: `Bearer ${token}` },
+        },
+        auth: {
+          persistSession: false,
         },
       }
     )
 
-    // Get authenticated user
+    // Get authenticated user using the token
     const {
       data: { user },
       error: authError,
-    } = await supabaseClient.auth.getUser()
+    } = await supabaseClient.auth.getUser(token)
 
     if (authError || !user) {
-      return new Response(JSON.stringify({ error: 'Unauthorized' }), {
+      return new Response(JSON.stringify({ error: 'Unauthorized', details: authError?.message || 'No user found' }), {
         status: 401,
         headers: { ...corsHeaders, 'Content-Type': 'application/json' },
       })
