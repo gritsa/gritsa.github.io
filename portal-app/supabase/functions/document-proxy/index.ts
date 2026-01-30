@@ -13,13 +13,22 @@ serve(async (req) => {
   }
 
   try {
+    // Parse request URL to get token (can be in query params or Authorization header)
+    const url = new URL(req.url)
+    const tokenFromQuery = url.searchParams.get('token')
+
+    let authHeader = req.headers.get('Authorization')
+    if (tokenFromQuery && !authHeader) {
+      authHeader = `Bearer ${tokenFromQuery}`
+    }
+
     // Create Supabase client
     const supabaseClient = createClient(
       Deno.env.get('SUPABASE_URL') ?? '',
       Deno.env.get('SUPABASE_ANON_KEY') ?? '',
       {
         global: {
-          headers: { Authorization: req.headers.get('Authorization')! },
+          headers: { Authorization: authHeader! },
         },
       }
     )
@@ -37,8 +46,7 @@ serve(async (req) => {
       })
     }
 
-    // Parse request URL to get bucket and file path
-    const url = new URL(req.url)
+    // Get bucket and file path
     const bucket = url.searchParams.get('bucket')
     const path = url.searchParams.get('path')
 
@@ -98,12 +106,46 @@ serve(async (req) => {
     const fileName = pathParts[pathParts.length - 1]
     const fileExtension = fileName.split('.').pop()?.toLowerCase()
 
+    // Comprehensive MIME type mapping
     let contentType = 'application/octet-stream'
-    if (fileExtension === 'pdf') contentType = 'application/pdf'
-    else if (fileExtension === 'png') contentType = 'image/png'
-    else if (fileExtension === 'jpg' || fileExtension === 'jpeg') contentType = 'image/jpeg'
-    else if (fileExtension === 'docx') contentType = 'application/vnd.openxmlformats-officedocument.wordprocessingml.document'
-    else if (fileExtension === 'doc') contentType = 'application/msword'
+    switch (fileExtension) {
+      case 'pdf':
+        contentType = 'application/pdf'
+        break
+      case 'png':
+        contentType = 'image/png'
+        break
+      case 'jpg':
+      case 'jpeg':
+        contentType = 'image/jpeg'
+        break
+      case 'gif':
+        contentType = 'image/gif'
+        break
+      case 'webp':
+        contentType = 'image/webp'
+        break
+      case 'svg':
+        contentType = 'image/svg+xml'
+        break
+      case 'docx':
+        contentType = 'application/vnd.openxmlformats-officedocument.wordprocessingml.document'
+        break
+      case 'doc':
+        contentType = 'application/msword'
+        break
+      case 'xlsx':
+        contentType = 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
+        break
+      case 'xls':
+        contentType = 'application/vnd.ms-excel'
+        break
+      case 'txt':
+        contentType = 'text/plain'
+        break
+      default:
+        contentType = 'application/octet-stream'
+    }
 
     // Return the file with appropriate headers
     return new Response(fileData, {

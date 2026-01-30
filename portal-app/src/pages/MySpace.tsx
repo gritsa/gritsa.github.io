@@ -32,6 +32,7 @@ import { DownloadIcon, ViewIcon, AddIcon } from '@chakra-ui/icons';
 import { Layout } from '../components/Layout';
 import { useAuth } from '../contexts/AuthContext';
 import { supabase } from '../config/supabase';
+import DocumentViewer from '../components/DocumentViewer';
 import type { Payslip, EmployeeDocument } from '../types';
 
 interface PersonalDocument {
@@ -73,6 +74,9 @@ const MySpace: React.FC = () => {
   const [uploadingPersonalDoc, setUploadingPersonalDoc] = useState(false);
   const [personalDocFile, setPersonalDocFile] = useState<File | null>(null);
   const [personalDocDescription, setPersonalDocDescription] = useState('');
+  const [viewerOpen, setViewerOpen] = useState(false);
+  const [viewerFilePath, setViewerFilePath] = useState('');
+  const [viewerFileName, setViewerFileName] = useState('');
   const toast = useToast();
 
   const [formData, setFormData] = useState<ProfileFormData>({
@@ -276,30 +280,10 @@ const MySpace: React.FC = () => {
     }
   };
 
-  const viewDocument = async (filePath: string) => {
-    try {
-      const session = await supabase.auth.getSession();
-      const token = session.data.session?.access_token;
-
-      if (!token) {
-        toast({
-          title: 'Authentication required',
-          status: 'error',
-          duration: 3000,
-        });
-        return;
-      }
-
-      const url = `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/document-proxy?bucket=documents&path=${filePath}`;
-      window.open(url + `&token=${token}`, '_blank');
-    } catch (error: any) {
-      toast({
-        title: 'Error viewing document',
-        description: error.message,
-        status: 'error',
-        duration: 5000,
-      });
-    }
+  const viewDocument = (filePath: string, fileName?: string) => {
+    setViewerFilePath(filePath);
+    setViewerFileName(fileName || filePath.split('/').pop() || 'Document');
+    setViewerOpen(true);
   };
 
   const handleUploadPersonalDocument = async () => {
@@ -680,7 +664,7 @@ const MySpace: React.FC = () => {
                               icon={<ViewIcon />}
                               size="sm"
                               colorScheme="blue"
-                              onClick={() => viewDocument(profile.pan_card_url)}
+                              onClick={() => viewDocument(profile.pan_card_url, 'PAN Card')}
                             />
                           )}
                         </HStack>
@@ -716,7 +700,7 @@ const MySpace: React.FC = () => {
                               icon={<ViewIcon />}
                               size="sm"
                               colorScheme="blue"
-                              onClick={() => viewDocument(profile.aadhaar_card_url)}
+                              onClick={() => viewDocument(profile.aadhaar_card_url, 'Aadhaar Card')}
                             />
                           )}
                         </HStack>
@@ -871,7 +855,7 @@ const MySpace: React.FC = () => {
                                   size="sm"
                                   variant="ghost"
                                   color="brand.400"
-                                  onClick={() => viewDocument(doc.file_path)}
+                                  onClick={() => viewDocument(doc.file_path, doc.document_name)}
                                 />
                               </Td>
                             </Tr>
@@ -925,7 +909,7 @@ const MySpace: React.FC = () => {
                                   size="sm"
                                   variant="ghost"
                                   color="brand.400"
-                                  onClick={() => viewDocument(doc.file_path)}
+                                  onClick={() => viewDocument(doc.file_path, doc.document_name)}
                                 />
                               </Td>
                             </Tr>
@@ -940,6 +924,13 @@ const MySpace: React.FC = () => {
           </TabPanels>
         </Tabs>
       </VStack>
+
+      <DocumentViewer
+        isOpen={viewerOpen}
+        onClose={() => setViewerOpen(false)}
+        filePath={viewerFilePath}
+        fileName={viewerFileName}
+      />
     </Layout>
   );
 };
