@@ -37,6 +37,9 @@ const HRTab: React.FC<HRTabProps> = ({ employeeId, onUpdate }) => {
     managerId: '',
     dateOfBirth: '',
     joiningDate: '',
+    emergencyContactName: '',
+    emergencyContactPhone: '',
+    emergencyContactRelationship: '',
   });
 
   useEffect(() => {
@@ -75,6 +78,9 @@ const HRTab: React.FC<HRTabProps> = ({ employeeId, onUpdate }) => {
         managerId: userData?.manager_id || '',
         dateOfBirth: profileData?.date_of_birth || '',
         joiningDate: profileData?.joining_date || '',
+        emergencyContactName: profileData?.emergency_contact_name || '',
+        emergencyContactPhone: profileData?.emergency_contact_phone || '',
+        emergencyContactRelationship: profileData?.emergency_contact_relationship || '',
       });
     } catch (error: any) {
       console.error('Error fetching profile:', error);
@@ -135,6 +141,9 @@ const HRTab: React.FC<HRTabProps> = ({ employeeId, onUpdate }) => {
           employment_type: formData.employmentType || null,
           date_of_birth: formData.dateOfBirth || null,
           joining_date: formData.joiningDate || null,
+          emergency_contact_name: formData.emergencyContactName,
+          emergency_contact_phone: formData.emergencyContactPhone,
+          emergency_contact_relationship: formData.emergencyContactRelationship,
         }, {
           onConflict: 'user_id',
         });
@@ -222,6 +231,48 @@ const HRTab: React.FC<HRTabProps> = ({ employeeId, onUpdate }) => {
                 name="joiningDate"
                 value={formData.joiningDate}
                 onChange={handleInputChange}
+                color="white"
+              />
+            </FormControl>
+          </SimpleGrid>
+        </CardBody>
+      </Card>
+
+      {/* Emergency Contact */}
+      <Card bg="rgba(255, 255, 255, 0.03)">
+        <CardBody>
+          <Heading size="sm" mb={4} color="white">Emergency Contact</Heading>
+          <SimpleGrid columns={{ base: 1, md: 3 }} spacing={4}>
+            <FormControl isRequired>
+              <FormLabel color="whiteAlpha.900">Contact Name</FormLabel>
+              <Input
+                variant="filled"
+                name="emergencyContactName"
+                value={formData.emergencyContactName}
+                onChange={handleInputChange}
+                color="white"
+              />
+            </FormControl>
+
+            <FormControl isRequired>
+              <FormLabel color="whiteAlpha.900">Contact Phone</FormLabel>
+              <Input
+                variant="filled"
+                name="emergencyContactPhone"
+                value={formData.emergencyContactPhone}
+                onChange={handleInputChange}
+                color="white"
+              />
+            </FormControl>
+
+            <FormControl isRequired>
+              <FormLabel color="whiteAlpha.900">Relationship</FormLabel>
+              <Input
+                variant="filled"
+                name="emergencyContactRelationship"
+                value={formData.emergencyContactRelationship}
+                onChange={handleInputChange}
+                placeholder="e.g., Spouse, Parent, Sibling"
                 color="white"
               />
             </FormControl>
