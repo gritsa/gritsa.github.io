@@ -14,7 +14,7 @@ import {
   Text,
 } from '@chakra-ui/react';
 import { DownloadIcon } from '@chakra-ui/icons';
-import { supabase, supabaseUrl } from '../config/supabase';
+import { supabase, supabaseUrl, supabaseAnonKey } from '../config/supabase';
 
 interface DocumentViewerProps {
   isOpen: boolean;
@@ -56,6 +56,9 @@ const DocumentViewer: React.FC<DocumentViewerProps> = ({ isOpen, onClose, filePa
 
       const response = await fetch(url, {
         method: 'GET',
+        headers: {
+          'apikey': supabaseAnonKey,
+        },
       });
 
       if (!response.ok) {
@@ -94,6 +97,9 @@ const DocumentViewer: React.FC<DocumentViewerProps> = ({ isOpen, onClose, filePa
 
       const response = await fetch(url, {
         method: 'GET',
+        headers: {
+          'apikey': supabaseAnonKey,
+        },
       });
       if (!response.ok) {
         const errorText = await response.text();
