@@ -75,6 +75,11 @@ const PayrollTab: React.FC<PayrollTabProps> = ({ employeeId }) => {
     loan_recovery: 0,
     total_deductions: 0,
     net_salary: 0,
+    total_days_in_month: 0,
+    working_days: 0,
+    paid_days: 0,
+    leaves_taken: 0,
+    lop_days: 0,
   });
 
   useEffect(() => {
@@ -243,6 +248,7 @@ const PayrollTab: React.FC<PayrollTabProps> = ({ employeeId }) => {
     if (existingPayslip) {
       // Edit existing payslip
       setEditingPayslipId(existingPayslip.id);
+      const daysInMonth = new Date(selectedYear, selectedMonth, 0).getDate();
       setPayslipForm({
         gross_salary: existingPayslip.gross_salary,
         epf: existingPayslip.epf || 0,
@@ -253,6 +259,11 @@ const PayrollTab: React.FC<PayrollTabProps> = ({ employeeId }) => {
         loan_recovery: existingPayslip.loan_recovery || 0,
         total_deductions: existingPayslip.total_deductions,
         net_salary: existingPayslip.net_salary,
+        total_days_in_month: existingPayslip.total_days_in_month || daysInMonth,
+        working_days: existingPayslip.working_days || 0,
+        paid_days: existingPayslip.paid_days || 0,
+        leaves_taken: existingPayslip.leaves_taken || 0,
+        lop_days: existingPayslip.lop_days || 0,
       });
       onPayslipOpen();
       return;
@@ -286,6 +297,9 @@ const PayrollTab: React.FC<PayrollTabProps> = ({ employeeId }) => {
       (activeSalary.dearness_allowance || 0) +
       (activeSalary.lta || 0);
 
+    // Calculate days in month
+    const daysInMonth = new Date(selectedYear, selectedMonth, 0).getDate();
+
     setEditingPayslipId(null);
     setPayslipForm({
       gross_salary: gross,
@@ -297,6 +311,11 @@ const PayrollTab: React.FC<PayrollTabProps> = ({ employeeId }) => {
       loan_recovery: 0,
       total_deductions: 0,
       net_salary: gross,
+      total_days_in_month: daysInMonth,
+      working_days: 0,
+      paid_days: 0,
+      leaves_taken: 0,
+      lop_days: 0,
     });
 
     onPayslipOpen();
@@ -306,6 +325,7 @@ const PayrollTab: React.FC<PayrollTabProps> = ({ employeeId }) => {
     setEditingPayslipId(payslip.id);
     setSelectedMonth(payslip.month);
     setSelectedYear(payslip.year);
+    const daysInMonth = new Date(payslip.year, payslip.month, 0).getDate();
     setPayslipForm({
       gross_salary: payslip.gross_salary,
       epf: payslip.epf || 0,
@@ -316,6 +336,11 @@ const PayrollTab: React.FC<PayrollTabProps> = ({ employeeId }) => {
       loan_recovery: payslip.loan_recovery || 0,
       total_deductions: payslip.total_deductions,
       net_salary: payslip.net_salary,
+      total_days_in_month: payslip.total_days_in_month || daysInMonth,
+      working_days: payslip.working_days || 0,
+      paid_days: payslip.paid_days || 0,
+      leaves_taken: payslip.leaves_taken || 0,
+      lop_days: payslip.lop_days || 0,
     });
     onPayslipOpen();
   };
@@ -348,6 +373,11 @@ const PayrollTab: React.FC<PayrollTabProps> = ({ employeeId }) => {
         loan_recovery: payslipForm.loan_recovery,
         total_deductions: totalDeductions,
         net_salary: payslipForm.gross_salary - totalDeductions,
+        total_days_in_month: payslipForm.total_days_in_month,
+        working_days: payslipForm.working_days,
+        paid_days: payslipForm.paid_days,
+        leaves_taken: payslipForm.leaves_taken,
+        lop_days: payslipForm.lop_days,
         details: {},
         status: 'Draft',
       };
@@ -800,6 +830,70 @@ const PayrollTab: React.FC<PayrollTabProps> = ({ employeeId }) => {
                     type="number"
                     value={payslipForm.loan_recovery}
                     onChange={(e) => setPayslipForm({ ...payslipForm, loan_recovery: parseFloat(e.target.value) || 0 })}
+                    color="white"
+                  />
+                </FormControl>
+              </SimpleGrid>
+
+              <Text fontSize="md" fontWeight="bold" color="whiteAlpha.900" alignSelf="flex-start" mt={4}>
+                Attendance Details
+              </Text>
+
+              <SimpleGrid columns={{ base: 1, md: 3 }} spacing={4} w="full">
+                <FormControl>
+                  <FormLabel color="whiteAlpha.900">Total Days in Month</FormLabel>
+                  <Input
+                    variant="filled"
+                    type="number"
+                    value={payslipForm.total_days_in_month}
+                    onChange={(e) => setPayslipForm({ ...payslipForm, total_days_in_month: parseInt(e.target.value) || 0 })}
+                    color="white"
+                  />
+                </FormControl>
+
+                <FormControl>
+                  <FormLabel color="whiteAlpha.900">Working Days</FormLabel>
+                  <Input
+                    variant="filled"
+                    type="number"
+                    value={payslipForm.working_days}
+                    onChange={(e) => setPayslipForm({ ...payslipForm, working_days: parseInt(e.target.value) || 0 })}
+                    color="white"
+                  />
+                </FormControl>
+
+                <FormControl>
+                  <FormLabel color="whiteAlpha.900">Paid Days</FormLabel>
+                  <Input
+                    variant="filled"
+                    type="number"
+                    step="0.5"
+                    value={payslipForm.paid_days}
+                    onChange={(e) => setPayslipForm({ ...payslipForm, paid_days: parseFloat(e.target.value) || 0 })}
+                    color="white"
+                  />
+                </FormControl>
+
+                <FormControl>
+                  <FormLabel color="whiteAlpha.900">Leaves Taken</FormLabel>
+                  <Input
+                    variant="filled"
+                    type="number"
+                    step="0.5"
+                    value={payslipForm.leaves_taken}
+                    onChange={(e) => setPayslipForm({ ...payslipForm, leaves_taken: parseFloat(e.target.value) || 0 })}
+                    color="white"
+                  />
+                </FormControl>
+
+                <FormControl>
+                  <FormLabel color="whiteAlpha.900">Loss of Pay (LOP) Days</FormLabel>
+                  <Input
+                    variant="filled"
+                    type="number"
+                    step="0.5"
+                    value={payslipForm.lop_days}
+                    onChange={(e) => setPayslipForm({ ...payslipForm, lop_days: parseFloat(e.target.value) || 0 })}
                     color="white"
                   />
                 </FormControl>

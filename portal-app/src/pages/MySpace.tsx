@@ -384,42 +384,275 @@ const MySpace: React.FC = () => {
         <head>
           <title>Payslip - ${monthNames[payslip.month - 1]} ${payslip.year}</title>
           <style>
-            body { font-family: Arial, sans-serif; padding: 40px; }
-            h1 { color: #333; text-align: center; }
-            .info { margin-bottom: 30px; }
-            .info p { margin: 5px 0; }
-            table { width: 100%; border-collapse: collapse; margin-top: 20px; }
-            th, td { border: 1px solid #ddd; padding: 12px; text-align: left; }
-            th { background-color: #667eea; color: white; }
-            .total { background-color: #f0f0f0; font-weight: bold; }
-            @media print { body { padding: 20px; } }
+            * { margin: 0; padding: 0; box-sizing: border-box; }
+            body {
+              font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+              padding: 30px;
+              color: #333;
+              background: #f5f5f5;
+            }
+            .container {
+              max-width: 900px;
+              margin: 0 auto;
+              background: white;
+              padding: 40px;
+              box-shadow: 0 0 10px rgba(0,0,0,0.1);
+            }
+            .header {
+              border-bottom: 3px solid #667eea;
+              padding-bottom: 20px;
+              margin-bottom: 30px;
+            }
+            .company-name {
+              font-size: 24px;
+              font-weight: bold;
+              color: #667eea;
+              margin-bottom: 8px;
+            }
+            .company-info {
+              font-size: 12px;
+              color: #666;
+              line-height: 1.6;
+            }
+            .payslip-title {
+              text-align: center;
+              font-size: 20px;
+              font-weight: bold;
+              margin: 20px 0;
+              color: #333;
+            }
+            .section {
+              margin-bottom: 25px;
+            }
+            .section-title {
+              font-size: 14px;
+              font-weight: bold;
+              background: #f0f0f0;
+              padding: 8px 12px;
+              margin-bottom: 10px;
+              border-left: 4px solid #667eea;
+            }
+            .info-grid {
+              display: grid;
+              grid-template-columns: 1fr 1fr;
+              gap: 12px;
+              margin-bottom: 10px;
+            }
+            .info-item {
+              padding: 8px;
+              border-bottom: 1px solid #eee;
+            }
+            .info-label {
+              font-size: 11px;
+              color: #666;
+              margin-bottom: 4px;
+            }
+            .info-value {
+              font-size: 13px;
+              font-weight: 500;
+              color: #333;
+            }
+            table {
+              width: 100%;
+              border-collapse: collapse;
+              margin-top: 10px;
+            }
+            th {
+              background: #667eea;
+              color: white;
+              padding: 12px;
+              text-align: left;
+              font-size: 13px;
+              font-weight: 600;
+            }
+            td {
+              padding: 10px 12px;
+              border-bottom: 1px solid #eee;
+              font-size: 13px;
+            }
+            .amount {
+              text-align: right;
+              font-weight: 500;
+            }
+            .total-row {
+              background: #f8f9fa;
+              font-weight: bold;
+            }
+            .total-row td {
+              border-top: 2px solid #667eea;
+              border-bottom: 2px solid #667eea;
+              padding: 14px 12px;
+              font-size: 14px;
+            }
+            .net-pay-row {
+              background: #667eea;
+              color: white;
+            }
+            .net-pay-row td {
+              padding: 14px 12px;
+              font-size: 15px;
+              font-weight: bold;
+            }
+            .footer {
+              margin-top: 40px;
+              padding-top: 20px;
+              border-top: 1px solid #ddd;
+              font-size: 11px;
+              color: #666;
+              text-align: center;
+            }
+            @media print {
+              body { background: white; padding: 0; }
+              .container { box-shadow: none; padding: 20px; }
+            }
           </style>
         </head>
         <body>
-          <h1>Payslip for ${monthNames[payslip.month - 1]} ${payslip.year}</h1>
-          <div class="info">
-            <p><strong>Employee Name:</strong> ${userData?.displayName || userData?.email}</p>
-            <p><strong>Month:</strong> ${monthNames[payslip.month - 1]} ${payslip.year}</p>
-            <p><strong>Status:</strong> ${payslip.status}</p>
+          <div class="container">
+            <!-- Header -->
+            <div class="header">
+              <div class="company-name">Gritsa Technologies</div>
+              <div class="company-info">
+                GSTIN: 09AHDPC0852C1ZY<br>
+                Unit A-132, Logix Technova, Sector-132 NOIDA (UP) 201301<br>
+                Website: www.gritsa.com
+              </div>
+            </div>
+
+            <div class="payslip-title">
+              PAYSLIP FOR ${monthNames[payslip.month - 1].toUpperCase()} ${payslip.year}
+            </div>
+
+            <!-- Employee Information -->
+            <div class="section">
+              <div class="section-title">Employee Information</div>
+              <div class="info-grid">
+                <div class="info-item">
+                  <div class="info-label">Employee Name</div>
+                  <div class="info-value">${profile?.full_name || userData?.displayName || '-'}</div>
+                </div>
+                <div class="info-item">
+                  <div class="info-label">Employee ID</div>
+                  <div class="info-value">${profile?.employee_id || 'N/A'}</div>
+                </div>
+                <div class="info-item">
+                  <div class="info-label">Designation</div>
+                  <div class="info-value">${profile?.designation || 'N/A'}</div>
+                </div>
+                <div class="info-item">
+                  <div class="info-label">Department</div>
+                  <div class="info-value">${profile?.department || 'N/A'}</div>
+                </div>
+                <div class="info-item">
+                  <div class="info-label">Date of Joining</div>
+                  <div class="info-value">${profile?.joining_date ? new Date(profile.joining_date).toLocaleDateString('en-IN') : 'N/A'}</div>
+                </div>
+                <div class="info-item">
+                  <div class="info-label">Bank Account Number</div>
+                  <div class="info-value">${profile?.account_number ? '****' + profile.account_number.slice(-4) : 'N/A'}</div>
+                </div>
+                <div class="info-item">
+                  <div class="info-label">PAN</div>
+                  <div class="info-value">${profile?.pan_card_url ? 'On File' : 'N/A'}</div>
+                </div>
+              </div>
+            </div>
+
+            <!-- Attendance Details -->
+            <div class="section">
+              <div class="section-title">Attendance Details</div>
+              <div class="info-grid">
+                <div class="info-item">
+                  <div class="info-label">Total Days in Month</div>
+                  <div class="info-value">${payslip.total_days_in_month || new Date(payslip.year, payslip.month, 0).getDate()}</div>
+                </div>
+                <div class="info-item">
+                  <div class="info-label">Working Days</div>
+                  <div class="info-value">${payslip.working_days || '-'}</div>
+                </div>
+                <div class="info-item">
+                  <div class="info-label">Paid Days</div>
+                  <div class="info-value">${payslip.paid_days || '-'}</div>
+                </div>
+                <div class="info-item">
+                  <div class="info-label">Leaves Taken</div>
+                  <div class="info-value">${payslip.leaves_taken || 0}</div>
+                </div>
+                <div class="info-item">
+                  <div class="info-label">Loss of Pay (LOP) Days</div>
+                  <div class="info-value">${payslip.lop_days || 0}</div>
+                </div>
+              </div>
+            </div>
+
+            <!-- Earnings and Deductions -->
+            <div class="section">
+              <div class="section-title">Salary Details</div>
+              <table>
+                <thead>
+                  <tr>
+                    <th style="width: 50%">Earnings</th>
+                    <th class="amount">Amount (₹)</th>
+                    <th style="width: 50%">Deductions</th>
+                    <th class="amount">Amount (₹)</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  <tr>
+                    <td>Gross Earnings</td>
+                    <td class="amount">${payslip.gross_salary.toFixed(2)}</td>
+                    <td>Provident Fund (EPF)</td>
+                    <td class="amount">${(payslip.epf || 0).toFixed(2)}</td>
+                  </tr>
+                  <tr>
+                    <td></td>
+                    <td></td>
+                    <td>Tax Deducted at Source (TDS)</td>
+                    <td class="amount">${(payslip.tds || 0).toFixed(2)}</td>
+                  </tr>
+                  <tr>
+                    <td></td>
+                    <td></td>
+                    <td>Professional Tax (PT)</td>
+                    <td class="amount">${(payslip.professional_tax || 0).toFixed(2)}</td>
+                  </tr>
+                  <tr>
+                    <td></td>
+                    <td></td>
+                    <td>Employee State Insurance (ESI)</td>
+                    <td class="amount">${(payslip.esi || 0).toFixed(2)}</td>
+                  </tr>
+                  <tr>
+                    <td></td>
+                    <td></td>
+                    <td>Labour Welfare Fund (LWF)</td>
+                    <td class="amount">${(payslip.lwf || 0).toFixed(2)}</td>
+                  </tr>
+                  <tr>
+                    <td></td>
+                    <td></td>
+                    <td>Loan / Advance Recovery</td>
+                    <td class="amount">${(payslip.loan_recovery || 0).toFixed(2)}</td>
+                  </tr>
+                  <tr class="total-row">
+                    <td>Total Earnings</td>
+                    <td class="amount">${payslip.gross_salary.toFixed(2)}</td>
+                    <td>Total Deductions</td>
+                    <td class="amount">${payslip.total_deductions.toFixed(2)}</td>
+                  </tr>
+                  <tr class="net-pay-row">
+                    <td colspan="3">NET PAY</td>
+                    <td class="amount">₹ ${payslip.net_salary.toFixed(2)}</td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
+
+            <div class="footer">
+              This is a computer-generated payslip and does not require a signature.<br>
+              For any queries, please contact HR at hr@gritsa.com
+            </div>
           </div>
-          <table>
-            <tr>
-              <th>Description</th>
-              <th>Amount (₹)</th>
-            </tr>
-            <tr>
-              <td>Gross Salary</td>
-              <td>${payslip.gross_salary.toFixed(2)}</td>
-            </tr>
-            <tr>
-              <td>Total Deductions</td>
-              <td>${payslip.total_deductions.toFixed(2)}</td>
-            </tr>
-            <tr class="total">
-              <td>Net Salary</td>
-              <td>${payslip.net_salary.toFixed(2)}</td>
-            </tr>
-          </table>
           <script>
             window.onload = function() {
               window.print();

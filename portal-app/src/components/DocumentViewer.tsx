@@ -52,9 +52,13 @@ const DocumentViewer: React.FC<DocumentViewerProps> = ({ isOpen, onClose, filePa
         throw new Error('Authentication required');
       }
 
-      const url = `${supabaseUrl}/functions/v1/document-proxy?bucket=documents&path=${encodeURIComponent(filePath)}&token=${encodeURIComponent(token)}`;
+      const url = `${supabaseUrl}/functions/v1/document-proxy?bucket=documents&path=${encodeURIComponent(filePath)}`;
 
-      const response = await fetch(url);
+      const response = await fetch(url, {
+        headers: {
+          'Authorization': `Bearer ${token}`,
+        },
+      });
 
       if (!response.ok) {
         throw new Error(`Failed to load document: ${response.statusText}`);
@@ -86,9 +90,13 @@ const DocumentViewer: React.FC<DocumentViewerProps> = ({ isOpen, onClose, filePa
         throw new Error('Authentication required');
       }
 
-      const url = `${supabaseUrl}/functions/v1/document-proxy?bucket=documents&path=${encodeURIComponent(filePath)}&token=${encodeURIComponent(token)}`;
+      const url = `${supabaseUrl}/functions/v1/document-proxy?bucket=documents&path=${encodeURIComponent(filePath)}`;
 
-      const response = await fetch(url);
+      const response = await fetch(url, {
+        headers: {
+          'Authorization': `Bearer ${token}`,
+        },
+      });
       if (!response.ok) {
         throw new Error('Failed to download document');
       }

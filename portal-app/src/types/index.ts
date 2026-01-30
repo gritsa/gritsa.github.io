@@ -144,6 +144,12 @@ export interface Payslip {
   loan_recovery: number;
   total_deductions: number;
   net_salary: number;
+  // Attendance
+  total_days_in_month: number;
+  working_days: number;
+  paid_days: number;
+  leaves_taken: number;
+  lop_days: number;
   details: Record<string, any>;
   status: 'Draft' | 'Submitted' | 'Paid';
   submitted_at?: string;
