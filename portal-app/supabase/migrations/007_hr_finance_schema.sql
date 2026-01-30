@@ -1,6 +1,3 @@
--- Add HR-Finance role to user_role enum
-ALTER TYPE user_role ADD VALUE IF NOT EXISTS 'HR-Finance';
-
 -- Add new columns to employee_profiles table
 ALTER TABLE public.employee_profiles ADD COLUMN IF NOT EXISTS designation TEXT;
 ALTER TABLE public.employee_profiles ADD COLUMN IF NOT EXISTS employment_type TEXT CHECK (employment_type IN ('Intern', 'Permanent', 'Contract'));
