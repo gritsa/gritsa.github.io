@@ -111,9 +111,15 @@ export interface SalaryStructure {
   id: string;
   employee_id: string;
   effective_from: string;
+  // Earnings
   basic_salary: number;
   hra: number;
   special_allowance: number;
+  conveyance_allowance: number;
+  medical_allowance: number;
+  bonus_incentives: number;
+  dearness_allowance: number;
+  lta: number;
   other_allowances: Record<string, number>;
   deductions: Record<string, number>;
   is_active: boolean;
@@ -129,6 +135,13 @@ export interface Payslip {
   month: number;
   year: number;
   gross_salary: number;
+  // Deductions
+  epf: number;
+  tds: number;
+  professional_tax: number;
+  esi: number;
+  lwf: number;
+  loan_recovery: number;
   total_deductions: number;
   net_salary: number;
   details: Record<string, any>;

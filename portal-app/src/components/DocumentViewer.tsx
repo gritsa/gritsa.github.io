@@ -14,7 +14,7 @@ import {
   Text,
 } from '@chakra-ui/react';
 import { DownloadIcon } from '@chakra-ui/icons';
-import { supabase } from '../config/supabase';
+import { supabase, supabaseUrl } from '../config/supabase';
 
 interface DocumentViewerProps {
   isOpen: boolean;
@@ -52,7 +52,7 @@ const DocumentViewer: React.FC<DocumentViewerProps> = ({ isOpen, onClose, filePa
         throw new Error('Authentication required');
       }
 
-      const url = `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/document-proxy?bucket=documents&path=${encodeURIComponent(filePath)}&token=${encodeURIComponent(token)}`;
+      const url = `${supabaseUrl}/functions/v1/document-proxy?bucket=documents&path=${encodeURIComponent(filePath)}&token=${encodeURIComponent(token)}`;
 
       const response = await fetch(url);
 
@@ -86,7 +86,7 @@ const DocumentViewer: React.FC<DocumentViewerProps> = ({ isOpen, onClose, filePa
         throw new Error('Authentication required');
       }
 
-      const url = `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/document-proxy?bucket=documents&path=${encodeURIComponent(filePath)}&token=${encodeURIComponent(token)}`;
+      const url = `${supabaseUrl}/functions/v1/document-proxy?bucket=documents&path=${encodeURIComponent(filePath)}&token=${encodeURIComponent(token)}`;
 
       const response = await fetch(url);
       if (!response.ok) {

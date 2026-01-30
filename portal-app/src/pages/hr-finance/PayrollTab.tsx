@@ -58,10 +58,21 @@ const PayrollTab: React.FC<PayrollTabProps> = ({ employeeId }) => {
     basic_salary: '',
     hra: '',
     special_allowance: '',
+    conveyance_allowance: '',
+    medical_allowance: '',
+    bonus_incentives: '',
+    dearness_allowance: '',
+    lta: '',
   });
 
   const [payslipForm, setPayslipForm] = useState({
     gross_salary: 0,
+    epf: 0,
+    tds: 0,
+    professional_tax: 0,
+    esi: 0,
+    lwf: 0,
+    loan_recovery: 0,
     total_deductions: 0,
     net_salary: 0,
   });
@@ -109,6 +120,11 @@ const PayrollTab: React.FC<PayrollTabProps> = ({ employeeId }) => {
       basic_salary: salary.basic_salary.toString(),
       hra: salary.hra.toString(),
       special_allowance: salary.special_allowance.toString(),
+      conveyance_allowance: salary.conveyance_allowance?.toString() || '0',
+      medical_allowance: salary.medical_allowance?.toString() || '0',
+      bonus_incentives: salary.bonus_incentives?.toString() || '0',
+      dearness_allowance: salary.dearness_allowance?.toString() || '0',
+      lta: salary.lta?.toString() || '0',
     });
     onSalaryOpen();
   };
@@ -153,6 +169,11 @@ const PayrollTab: React.FC<PayrollTabProps> = ({ employeeId }) => {
         basic_salary: parseFloat(salaryForm.basic_salary),
         hra: parseFloat(salaryForm.hra) || 0,
         special_allowance: parseFloat(salaryForm.special_allowance) || 0,
+        conveyance_allowance: parseFloat(salaryForm.conveyance_allowance) || 0,
+        medical_allowance: parseFloat(salaryForm.medical_allowance) || 0,
+        bonus_incentives: parseFloat(salaryForm.bonus_incentives) || 0,
+        dearness_allowance: parseFloat(salaryForm.dearness_allowance) || 0,
+        lta: parseFloat(salaryForm.lta) || 0,
         other_allowances: {},
         deductions: {},
         is_active: true,
@@ -193,6 +214,11 @@ const PayrollTab: React.FC<PayrollTabProps> = ({ employeeId }) => {
         basic_salary: '',
         hra: '',
         special_allowance: '',
+        conveyance_allowance: '',
+        medical_allowance: '',
+        bonus_incentives: '',
+        dearness_allowance: '',
+        lta: '',
       });
       setEditingSalaryId(null);
 
@@ -219,6 +245,12 @@ const PayrollTab: React.FC<PayrollTabProps> = ({ employeeId }) => {
       setEditingPayslipId(existingPayslip.id);
       setPayslipForm({
         gross_salary: existingPayslip.gross_salary,
+        epf: existingPayslip.epf || 0,
+        tds: existingPayslip.tds || 0,
+        professional_tax: existingPayslip.professional_tax || 0,
+        esi: existingPayslip.esi || 0,
+        lwf: existingPayslip.lwf || 0,
+        loan_recovery: existingPayslip.loan_recovery || 0,
         total_deductions: existingPayslip.total_deductions,
         net_salary: existingPayslip.net_salary,
       });
@@ -243,12 +275,26 @@ const PayrollTab: React.FC<PayrollTabProps> = ({ employeeId }) => {
       return;
     }
 
-    // Calculate gross salary
-    const gross = activeSalary.basic_salary + activeSalary.hra + activeSalary.special_allowance;
+    // Calculate gross salary (sum of all earnings)
+    const gross =
+      activeSalary.basic_salary +
+      activeSalary.hra +
+      activeSalary.special_allowance +
+      (activeSalary.conveyance_allowance || 0) +
+      (activeSalary.medical_allowance || 0) +
+      (activeSalary.bonus_incentives || 0) +
+      (activeSalary.dearness_allowance || 0) +
+      (activeSalary.lta || 0);
 
     setEditingPayslipId(null);
     setPayslipForm({
       gross_salary: gross,
+      epf: 0,
+      tds: 0,
+      professional_tax: 0,
+      esi: 0,
+      lwf: 0,
+      loan_recovery: 0,
       total_deductions: 0,
       net_salary: gross,
     });
@@ -262,6 +308,12 @@ const PayrollTab: React.FC<PayrollTabProps> = ({ employeeId }) => {
     setSelectedYear(payslip.year);
     setPayslipForm({
       gross_salary: payslip.gross_salary,
+      epf: payslip.epf || 0,
+      tds: payslip.tds || 0,
+      professional_tax: payslip.professional_tax || 0,
+      esi: payslip.esi || 0,
+      lwf: payslip.lwf || 0,
+      loan_recovery: payslip.loan_recovery || 0,
       total_deductions: payslip.total_deductions,
       net_salary: payslip.net_salary,
     });
@@ -274,13 +326,28 @@ const PayrollTab: React.FC<PayrollTabProps> = ({ employeeId }) => {
     setLoading(true);
 
     try {
+      // Calculate total deductions
+      const totalDeductions =
+        payslipForm.epf +
+        payslipForm.tds +
+        payslipForm.professional_tax +
+        payslipForm.esi +
+        payslipForm.lwf +
+        payslipForm.loan_recovery;
+
       const payslipData = {
         employee_id: employeeId,
         month: selectedMonth,
         year: selectedYear,
         gross_salary: payslipForm.gross_salary,
-        total_deductions: payslipForm.total_deductions,
-        net_salary: payslipForm.gross_salary - payslipForm.total_deductions,
+        epf: payslipForm.epf,
+        tds: payslipForm.tds,
+        professional_tax: payslipForm.professional_tax,
+        esi: payslipForm.esi,
+        lwf: payslipForm.lwf,
+        loan_recovery: payslipForm.loan_recovery,
+        total_deductions: totalDeductions,
+        net_salary: payslipForm.gross_salary - totalDeductions,
         details: {},
         status: 'Draft',
       };
@@ -517,7 +584,7 @@ const PayrollTab: React.FC<PayrollTabProps> = ({ employeeId }) => {
       </Card>
 
       {/* Salary Structure Modal */}
-      <Modal isOpen={isSalaryOpen} onClose={onSalaryClose}>
+      <Modal isOpen={isSalaryOpen} onClose={onSalaryClose} size="4xl">
         <ModalOverlay />
         <ModalContent bg="#1a1a1a" borderColor="rgba(255, 255, 255, 0.1)">
           <ModalHeader color="white">{editingSalaryId ? 'Edit' : 'Add'} Salary Structure</ModalHeader>
@@ -535,38 +602,99 @@ const PayrollTab: React.FC<PayrollTabProps> = ({ employeeId }) => {
                 />
               </FormControl>
 
-              <FormControl isRequired>
-                <FormLabel color="whiteAlpha.900">Basic Salary (₹)</FormLabel>
-                <Input
-                  variant="filled"
-                  type="number"
-                  value={salaryForm.basic_salary}
-                  onChange={(e) => setSalaryForm({ ...salaryForm, basic_salary: e.target.value })}
-                  color="white"
-                />
-              </FormControl>
+              <Text fontSize="md" fontWeight="bold" color="whiteAlpha.900" alignSelf="flex-start">
+                Earnings
+              </Text>
 
-              <FormControl>
-                <FormLabel color="whiteAlpha.900">HRA (₹)</FormLabel>
-                <Input
-                  variant="filled"
-                  type="number"
-                  value={salaryForm.hra}
-                  onChange={(e) => setSalaryForm({ ...salaryForm, hra: e.target.value })}
-                  color="white"
-                />
-              </FormControl>
+              <SimpleGrid columns={{ base: 1, md: 2 }} spacing={4} w="full">
+                <FormControl isRequired>
+                  <FormLabel color="whiteAlpha.900">Basic Salary (₹)</FormLabel>
+                  <Input
+                    variant="filled"
+                    type="number"
+                    value={salaryForm.basic_salary}
+                    onChange={(e) => setSalaryForm({ ...salaryForm, basic_salary: e.target.value })}
+                    color="white"
+                  />
+                </FormControl>
 
-              <FormControl>
-                <FormLabel color="whiteAlpha.900">Special Allowance (₹)</FormLabel>
-                <Input
-                  variant="filled"
-                  type="number"
-                  value={salaryForm.special_allowance}
-                  onChange={(e) => setSalaryForm({ ...salaryForm, special_allowance: e.target.value })}
-                  color="white"
-                />
-              </FormControl>
+                <FormControl>
+                  <FormLabel color="whiteAlpha.900">House Rent Allowance (₹)</FormLabel>
+                  <Input
+                    variant="filled"
+                    type="number"
+                    value={salaryForm.hra}
+                    onChange={(e) => setSalaryForm({ ...salaryForm, hra: e.target.value })}
+                    color="white"
+                  />
+                </FormControl>
+
+                <FormControl>
+                  <FormLabel color="whiteAlpha.900">Special Allowance (₹)</FormLabel>
+                  <Input
+                    variant="filled"
+                    type="number"
+                    value={salaryForm.special_allowance}
+                    onChange={(e) => setSalaryForm({ ...salaryForm, special_allowance: e.target.value })}
+                    color="white"
+                  />
+                </FormControl>
+
+                <FormControl>
+                  <FormLabel color="whiteAlpha.900">Conveyance Allowance (₹)</FormLabel>
+                  <Input
+                    variant="filled"
+                    type="number"
+                    value={salaryForm.conveyance_allowance}
+                    onChange={(e) => setSalaryForm({ ...salaryForm, conveyance_allowance: e.target.value })}
+                    color="white"
+                  />
+                </FormControl>
+
+                <FormControl>
+                  <FormLabel color="whiteAlpha.900">Medical Allowance (₹)</FormLabel>
+                  <Input
+                    variant="filled"
+                    type="number"
+                    value={salaryForm.medical_allowance}
+                    onChange={(e) => setSalaryForm({ ...salaryForm, medical_allowance: e.target.value })}
+                    color="white"
+                  />
+                </FormControl>
+
+                <FormControl>
+                  <FormLabel color="whiteAlpha.900">Bonus / Incentives (₹)</FormLabel>
+                  <Input
+                    variant="filled"
+                    type="number"
+                    value={salaryForm.bonus_incentives}
+                    onChange={(e) => setSalaryForm({ ...salaryForm, bonus_incentives: e.target.value })}
+                    color="white"
+                  />
+                </FormControl>
+
+                <FormControl>
+                  <FormLabel color="whiteAlpha.900">Dearness Allowance (₹)</FormLabel>
+                  <Input
+                    variant="filled"
+                    type="number"
+                    value={salaryForm.dearness_allowance}
+                    onChange={(e) => setSalaryForm({ ...salaryForm, dearness_allowance: e.target.value })}
+                    color="white"
+                  />
+                </FormControl>
+
+                <FormControl>
+                  <FormLabel color="whiteAlpha.900">Leave Travel Allowance (₹)</FormLabel>
+                  <Input
+                    variant="filled"
+                    type="number"
+                    value={salaryForm.lta}
+                    onChange={(e) => setSalaryForm({ ...salaryForm, lta: e.target.value })}
+                    color="white"
+                  />
+                </FormControl>
+              </SimpleGrid>
             </VStack>
           </ModalBody>
 
@@ -582,7 +710,7 @@ const PayrollTab: React.FC<PayrollTabProps> = ({ employeeId }) => {
       </Modal>
 
       {/* Payslip Modal */}
-      <Modal isOpen={isPayslipOpen} onClose={onPayslipClose}>
+      <Modal isOpen={isPayslipOpen} onClose={onPayslipClose} size="3xl">
         <ModalOverlay />
         <ModalContent bg="#1a1a1a" borderColor="rgba(255, 255, 255, 0.1)">
           <ModalHeader color="white">
@@ -592,7 +720,7 @@ const PayrollTab: React.FC<PayrollTabProps> = ({ employeeId }) => {
           <ModalBody>
             <VStack spacing={4}>
               <FormControl>
-                <FormLabel color="whiteAlpha.900">Gross Salary (₹)</FormLabel>
+                <FormLabel color="whiteAlpha.900">Gross Earnings (₹)</FormLabel>
                 <Input
                   variant="filled"
                   type="number"
@@ -605,17 +733,94 @@ const PayrollTab: React.FC<PayrollTabProps> = ({ employeeId }) => {
                 />
               </FormControl>
 
+              <Text fontSize="md" fontWeight="bold" color="whiteAlpha.900" alignSelf="flex-start">
+                Deductions
+              </Text>
+
+              <SimpleGrid columns={{ base: 1, md: 2 }} spacing={4} w="full">
+                <FormControl>
+                  <FormLabel color="whiteAlpha.900">Provident Fund (EPF) (₹)</FormLabel>
+                  <Input
+                    variant="filled"
+                    type="number"
+                    value={payslipForm.epf}
+                    onChange={(e) => setPayslipForm({ ...payslipForm, epf: parseFloat(e.target.value) || 0 })}
+                    color="white"
+                  />
+                </FormControl>
+
+                <FormControl>
+                  <FormLabel color="whiteAlpha.900">Tax Deducted at Source (TDS) (₹)</FormLabel>
+                  <Input
+                    variant="filled"
+                    type="number"
+                    value={payslipForm.tds}
+                    onChange={(e) => setPayslipForm({ ...payslipForm, tds: parseFloat(e.target.value) || 0 })}
+                    color="white"
+                  />
+                </FormControl>
+
+                <FormControl>
+                  <FormLabel color="whiteAlpha.900">Professional Tax (PT) (₹)</FormLabel>
+                  <Input
+                    variant="filled"
+                    type="number"
+                    value={payslipForm.professional_tax}
+                    onChange={(e) => setPayslipForm({ ...payslipForm, professional_tax: parseFloat(e.target.value) || 0 })}
+                    color="white"
+                  />
+                </FormControl>
+
+                <FormControl>
+                  <FormLabel color="whiteAlpha.900">Employee State Insurance (ESI) (₹)</FormLabel>
+                  <Input
+                    variant="filled"
+                    type="number"
+                    value={payslipForm.esi}
+                    onChange={(e) => setPayslipForm({ ...payslipForm, esi: parseFloat(e.target.value) || 0 })}
+                    color="white"
+                  />
+                </FormControl>
+
+                <FormControl>
+                  <FormLabel color="whiteAlpha.900">Labour Welfare Fund (LWF) (₹)</FormLabel>
+                  <Input
+                    variant="filled"
+                    type="number"
+                    value={payslipForm.lwf}
+                    onChange={(e) => setPayslipForm({ ...payslipForm, lwf: parseFloat(e.target.value) || 0 })}
+                    color="white"
+                  />
+                </FormControl>
+
+                <FormControl>
+                  <FormLabel color="whiteAlpha.900">Loan / Advance Recovery (₹)</FormLabel>
+                  <Input
+                    variant="filled"
+                    type="number"
+                    value={payslipForm.loan_recovery}
+                    onChange={(e) => setPayslipForm({ ...payslipForm, loan_recovery: parseFloat(e.target.value) || 0 })}
+                    color="white"
+                  />
+                </FormControl>
+              </SimpleGrid>
+
               <FormControl>
                 <FormLabel color="whiteAlpha.900">Total Deductions (₹)</FormLabel>
                 <Input
                   variant="filled"
                   type="number"
-                  value={payslipForm.total_deductions}
-                  onChange={(e) => setPayslipForm({
-                    ...payslipForm,
-                    total_deductions: parseFloat(e.target.value) || 0,
-                  })}
+                  value={(
+                    payslipForm.epf +
+                    payslipForm.tds +
+                    payslipForm.professional_tax +
+                    payslipForm.esi +
+                    payslipForm.lwf +
+                    payslipForm.loan_recovery
+                  ).toFixed(2)}
+                  isReadOnly
                   color="white"
+                  bg="rgba(255, 255, 255, 0.05)"
                 />
               </FormControl>
 
@@ -624,7 +829,15 @@ const PayrollTab: React.FC<PayrollTabProps> = ({ employeeId }) => {
                 <Input
                   variant="filled"
                   type="number"
-                  value={(payslipForm.gross_salary - payslipForm.total_deductions).toFixed(2)}
+                  value={(
+                    payslipForm.gross_salary -
+                    (payslipForm.epf +
+                      payslipForm.tds +
+                      payslipForm.professional_tax +
+                      payslipForm.esi +
+                      payslipForm.lwf +
+                      payslipForm.loan_recovery)
+                  ).toFixed(2)}
                   isReadOnly
                   color="white"
                   bg="rgba(255, 255, 255, 0.05)"

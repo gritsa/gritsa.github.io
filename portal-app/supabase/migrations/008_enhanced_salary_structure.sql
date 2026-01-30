@@ -1,0 +1,16 @@
+-- Add new earnings fields to salary_structures table
+ALTER TABLE public.salary_structures
+  ADD COLUMN IF NOT EXISTS conveyance_allowance DECIMAL(12, 2) DEFAULT 0,
+  ADD COLUMN IF NOT EXISTS medical_allowance DECIMAL(12, 2) DEFAULT 0,
+  ADD COLUMN IF NOT EXISTS bonus_incentives DECIMAL(12, 2) DEFAULT 0,
+  ADD COLUMN IF NOT EXISTS dearness_allowance DECIMAL(12, 2) DEFAULT 0,
+  ADD COLUMN IF NOT EXISTS lta DECIMAL(12, 2) DEFAULT 0;
+
+-- Add new deduction fields to payslips table
+ALTER TABLE public.payslips
+  ADD COLUMN IF NOT EXISTS epf DECIMAL(12, 2) DEFAULT 0,
+  ADD COLUMN IF NOT EXISTS tds DECIMAL(12, 2) DEFAULT 0,
+  ADD COLUMN IF NOT EXISTS professional_tax DECIMAL(12, 2) DEFAULT 0,
+  ADD COLUMN IF NOT EXISTS esi DECIMAL(12, 2) DEFAULT 0,
+  ADD COLUMN IF NOT EXISTS lwf DECIMAL(12, 2) DEFAULT 0,
+  ADD COLUMN IF NOT EXISTS loan_recovery DECIMAL(12, 2) DEFAULT 0;
