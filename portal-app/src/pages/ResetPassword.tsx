@@ -55,9 +55,32 @@ const ResetPassword: React.FC = () => {
           console.log('[ResetPassword] Hash params - token:', !!token, 'type:', type);
         }
 
-        // If not in hash, check query params (before redirect)
+        // If not in hash, check query params for PKCE code
         if (!token && window.location.search) {
           const searchParams = new URLSearchParams(window.location.search);
+          const code = searchParams.get('code');
+          console.log('[ResetPassword] Query params - code:', !!code);
+
+          if (code) {
+            console.log('[ResetPassword] Found PKCE code, exchanging for session...');
+
+            // Exchange the PKCE code for a session
+            const { data, error } = await resetPasswordClient.auth.exchangeCodeForSession(code);
+
+            if (error) {
+              console.error('[ResetPassword] exchangeCodeForSession error:', error);
+              throw error;
+            }
+
+            console.log('[ResetPassword] Code exchanged successfully:', !!data.session);
+
+            if (data.session) {
+              setValidSession(true);
+              return;
+            }
+          }
+
+          // Also check for legacy token format
           token = searchParams.get('token');
           type = searchParams.get('type');
           console.log('[ResetPassword] Query params - token:', !!token, 'type:', type);
