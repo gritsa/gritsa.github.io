@@ -41,19 +41,46 @@ This ensures password reset emails and OAuth redirects work correctly.
 
 This allows the password reset flow to redirect back to your app.
 
+## CRITICAL: Password Reset Flow Type
+
+**Location**: Supabase Dashboard → Authentication → Settings
+
+**Setting**: Flow Type
+
+**IMPORTANT**: Change the flow type from "PKCE" to "Implicit" for password reset to work correctly.
+
+The PKCE flow requires a code verifier that is stored when the flow is initiated. However, password reset emails are sent from Supabase's server, not from your app, so there's no code verifier available. The implicit flow uses hash fragments in the URL which work perfectly for email-based password resets.
+
+**Steps to configure**:
+1. Go to Supabase Dashboard
+2. Navigate to Authentication → Settings
+3. Find "Auth Flow Type" or similar setting
+4. Change from "PKCE" to "Implicit" (or "implicit_grant")
+5. Save changes
+
+Alternatively, you can keep PKCE for regular login and only use implicit for password reset by configuring the email template to use the implicit flow URL format.
+
 ## Email Templates
 
 ### Password Reset Email
 
 **Location**: Supabase Dashboard → Authentication → Email Templates → Reset Password
 
-**Update the Reset Link** to use your production domain:
+**CRITICAL**: The email template needs to use a token-based URL, not the confirmation URL.
 
-```
-<a href="{{ .ConfirmationURL }}">Reset Password</a>
+**Use this template format**:
+
+```html
+<a href="{{ .SiteURL }}/reset-password?token={{ .TokenHash }}&type=recovery">Reset Password</a>
 ```
 
-The `{{ .ConfirmationURL }}` will automatically use the Site URL configured above.
+**Important notes**:
+- Use `{{ .TokenHash }}` NOT `{{ .Token }}`
+- Use query parameters (`?token=`) NOT hash fragments (`#access_token=`)
+- The `type=recovery` parameter is required
+- DO NOT use `{{ .ConfirmationURL }}` as it may use PKCE flow which doesn't work for email-based recovery
+
+If `{{ .TokenHash }}` doesn't work, try `{{ .Token }}` as the variable name may differ in your Supabase version.
 
 ## Testing Checklist
 

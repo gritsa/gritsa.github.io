@@ -44,79 +44,71 @@ const ResetPassword: React.FC = () => {
         console.log('[ResetPassword] Hash:', window.location.hash);
         console.log('[ResetPassword] Search:', window.location.search);
 
-        // Check for token in hash first (after redirect)
-        let token = null;
-        let type = null;
+        // Priority 1: Check query params for recovery token (recommended format)
+        const searchParams = new URLSearchParams(window.location.search);
+        let token = searchParams.get('token');
+        let type = searchParams.get('type');
+        console.log('[ResetPassword] Query params - token:', !!token, 'type:', type);
 
+        if (token && type === 'recovery') {
+          console.log('[ResetPassword] Found recovery token in query, exchanging with verifyOtp...');
+
+          // Exchange the token using verifyOtp
+          const { data, error } = await resetPasswordClient.auth.verifyOtp({
+            token_hash: token,
+            type: 'recovery',
+          });
+
+          if (error) {
+            console.error('[ResetPassword] verifyOtp error:', error);
+            throw error;
+          }
+
+          console.log('[ResetPassword] Token exchanged successfully:', !!data.session);
+
+          if (data.session) {
+            setValidSession(true);
+            return;
+          }
+        }
+
+        // Priority 2: Check query params for PKCE code
+        const code = searchParams.get('code');
+        console.log('[ResetPassword] Query params - code:', !!code);
+
+        if (code) {
+          console.log('[ResetPassword] Found PKCE code, exchanging for session...');
+
+          // Exchange the PKCE code for a session
+          const { data, error } = await resetPasswordClient.auth.exchangeCodeForSession(code);
+
+          if (error) {
+            console.error('[ResetPassword] exchangeCodeForSession error:', error);
+            throw error;
+          }
+
+          console.log('[ResetPassword] Code exchanged successfully:', !!data.session);
+
+          if (data.session) {
+            setValidSession(true);
+            return;
+          }
+        }
+
+        // Priority 3: Check hash for JWT tokens (implicit flow)
         if (window.location.hash) {
           const hashParams = new URLSearchParams(window.location.hash.substring(1));
-          token = hashParams.get('access_token');
-          type = hashParams.get('type');
-          console.log('[ResetPassword] Hash params - token:', !!token, 'type:', type);
-        }
-
-        // If not in hash, check query params for PKCE code
-        if (!token && window.location.search) {
-          const searchParams = new URLSearchParams(window.location.search);
-          const code = searchParams.get('code');
-          console.log('[ResetPassword] Query params - code:', !!code);
-
-          if (code) {
-            console.log('[ResetPassword] Found PKCE code, exchanging for session...');
-
-            // Exchange the PKCE code for a session
-            const { data, error } = await resetPasswordClient.auth.exchangeCodeForSession(code);
-
-            if (error) {
-              console.error('[ResetPassword] exchangeCodeForSession error:', error);
-              throw error;
-            }
-
-            console.log('[ResetPassword] Code exchanged successfully:', !!data.session);
-
-            if (data.session) {
-              setValidSession(true);
-              return;
-            }
-          }
-
-          // Also check for legacy token format
-          token = searchParams.get('token');
-          type = searchParams.get('type');
-          console.log('[ResetPassword] Query params - token:', !!token, 'type:', type);
-
-          if (token && type === 'recovery') {
-            console.log('[ResetPassword] Found recovery token in query, exchanging with verifyOtp...');
-
-            // Exchange the token using verifyOtp
-            const { data, error } = await resetPasswordClient.auth.verifyOtp({
-              token_hash: token,
-              type: 'recovery',
-            });
-
-            if (error) {
-              console.error('[ResetPassword] verifyOtp error:', error);
-              throw error;
-            }
-
-            console.log('[ResetPassword] Token exchanged successfully:', !!data.session);
-
-            if (data.session) {
-              setValidSession(true);
-              return;
-            }
-          }
-        }
-
-        // If we found tokens in hash (already redirected), set session directly
-        if (token && type === 'recovery') {
-          const hashParams = new URLSearchParams(window.location.hash.substring(1));
+          const accessToken = hashParams.get('access_token');
+          const hashType = hashParams.get('type');
           const refreshToken = hashParams.get('refresh_token');
 
-          if (refreshToken) {
-            console.log('[ResetPassword] Setting session from hash tokens...');
+          console.log('[ResetPassword] Hash params - access_token:', !!accessToken, 'type:', hashType, 'refresh_token:', !!refreshToken);
+
+          if (accessToken && refreshToken && hashType === 'recovery') {
+            console.log('[ResetPassword] Found JWT tokens in hash, setting session...');
+
             const { error } = await resetPasswordClient.auth.setSession({
-              access_token: token,
+              access_token: accessToken,
               refresh_token: refreshToken,
             });
 
