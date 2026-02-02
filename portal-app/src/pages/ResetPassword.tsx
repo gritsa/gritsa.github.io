@@ -17,13 +17,13 @@ import { createClient } from '@supabase/supabase-js';
 import { supabaseUrl, supabaseAnonKey } from '../config/supabase';
 import logo from '../assets/Gritsa-Logo-V2-Subtle.svg';
 
-// Create a separate Supabase client for password reset with detectSessionInUrl enabled
-// This allows the client to automatically process the redirect from Supabase's verify endpoint
+// Create a separate Supabase client for password reset
+// We'll manually handle the token exchange
 const resetPasswordClient = createClient(supabaseUrl, supabaseAnonKey, {
   auth: {
     autoRefreshToken: false,
     persistSession: false,
-    detectSessionInUrl: true, // Enable for password reset to capture tokens from URL
+    detectSessionInUrl: false,
     flowType: 'pkce',
   },
 });
@@ -37,61 +37,100 @@ const ResetPassword: React.FC = () => {
   const toast = useToast();
 
   useEffect(() => {
-    let mounted = true;
-    let timeoutId: number;
+    const exchangeTokenForSession = async () => {
+      try {
+        console.log('[ResetPassword] Checking URL for recovery token...');
+        console.log('[ResetPassword] Full URL:', window.location.href);
+        console.log('[ResetPassword] Hash:', window.location.hash);
+        console.log('[ResetPassword] Search:', window.location.search);
 
-    console.log('[ResetPassword] Setting up auth state listener...');
+        // Check for token in hash first (after redirect)
+        let token = null;
+        let type = null;
 
-    // Listen to auth state changes - detectSessionInUrl works via events
-    const { data: { subscription } } = resetPasswordClient.auth.onAuthStateChange(async (event, session) => {
-      if (!mounted) return;
-
-      console.log('[ResetPassword] Auth event:', event, 'Has session:', !!session);
-
-      if (event === 'PASSWORD_RECOVERY' || (session && session.user)) {
-        console.log('[ResetPassword] Valid recovery session detected');
-        setValidSession(true);
-        // Clear timeout since we found the session
-        if (timeoutId) clearTimeout(timeoutId);
-      }
-    });
-
-    // Also check immediately in case session is already in storage
-    resetPasswordClient.auth.getSession().then(({ data: { session } }) => {
-      if (!mounted) return;
-
-      console.log('[ResetPassword] Initial session check:', !!session);
-
-      if (session && session.user) {
-        console.log('[ResetPassword] Session already available');
-        setValidSession(true);
-        if (timeoutId) clearTimeout(timeoutId);
-      }
-    });
-
-    // Set a timeout to show error if no session is detected after 3 seconds
-    timeoutId = setTimeout(() => {
-      if (!mounted) return;
-
-      resetPasswordClient.auth.getSession().then(({ data: { session } }) => {
-        if (!session && mounted) {
-          console.warn('[ResetPassword] No valid recovery session after timeout');
-          toast({
-            title: 'Invalid or expired link',
-            description: 'Please request a new password reset link.',
-            status: 'error',
-            duration: 5000,
-          });
-          setTimeout(() => navigate('/forgot-password'), 2000);
+        if (window.location.hash) {
+          const hashParams = new URLSearchParams(window.location.hash.substring(1));
+          token = hashParams.get('access_token');
+          type = hashParams.get('type');
+          console.log('[ResetPassword] Hash params - token:', !!token, 'type:', type);
         }
-      });
-    }, 3000);
 
-    return () => {
-      mounted = false;
-      if (timeoutId) clearTimeout(timeoutId);
-      subscription.unsubscribe();
+        // If not in hash, check query params (before redirect)
+        if (!token && window.location.search) {
+          const searchParams = new URLSearchParams(window.location.search);
+          token = searchParams.get('token');
+          type = searchParams.get('type');
+          console.log('[ResetPassword] Query params - token:', !!token, 'type:', type);
+
+          if (token && type === 'recovery') {
+            console.log('[ResetPassword] Found recovery token in query, exchanging with verifyOtp...');
+
+            // Exchange the token using verifyOtp
+            const { data, error } = await resetPasswordClient.auth.verifyOtp({
+              token_hash: token,
+              type: 'recovery',
+            });
+
+            if (error) {
+              console.error('[ResetPassword] verifyOtp error:', error);
+              throw error;
+            }
+
+            console.log('[ResetPassword] Token exchanged successfully:', !!data.session);
+
+            if (data.session) {
+              setValidSession(true);
+              return;
+            }
+          }
+        }
+
+        // If we found tokens in hash (already redirected), set session directly
+        if (token && type === 'recovery') {
+          const hashParams = new URLSearchParams(window.location.hash.substring(1));
+          const refreshToken = hashParams.get('refresh_token');
+
+          if (refreshToken) {
+            console.log('[ResetPassword] Setting session from hash tokens...');
+            const { error } = await resetPasswordClient.auth.setSession({
+              access_token: token,
+              refresh_token: refreshToken,
+            });
+
+            if (error) {
+              console.error('[ResetPassword] setSession error:', error);
+              throw error;
+            }
+
+            console.log('[ResetPassword] Session set successfully');
+            setValidSession(true);
+            return;
+          }
+        }
+
+        // No valid token found
+        console.warn('[ResetPassword] No valid recovery token found in URL');
+        toast({
+          title: 'Invalid or expired link',
+          description: 'Please request a new password reset link.',
+          status: 'error',
+          duration: 5000,
+        });
+        setTimeout(() => navigate('/forgot-password'), 2000);
+
+      } catch (error: any) {
+        console.error('[ResetPassword] Error:', error);
+        toast({
+          title: 'Error',
+          description: error.message || 'Failed to validate reset link',
+          status: 'error',
+          duration: 5000,
+        });
+        setTimeout(() => navigate('/forgot-password'), 2000);
+      }
     };
+
+    exchangeTokenForSession();
   }, [navigate, toast]);
 
   const handleSubmit = async (e: React.FormEvent) => {
