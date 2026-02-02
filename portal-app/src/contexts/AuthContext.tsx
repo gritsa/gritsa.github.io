@@ -156,10 +156,20 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
       if (event === 'TOKEN_REFRESHED') {
         console.log('[AuthContext] Token refreshed successfully');
+        // Session is still valid, no need to fetch user data again
+        return;
       }
 
       if (event === 'SIGNED_IN') {
         console.log('[AuthContext] User signed in');
+      }
+
+      // Handle refresh failure
+      if (event === 'USER_UPDATED' && !session) {
+        console.warn('[AuthContext] User update event with no session - possible refresh failure');
+        // Don't automatically sign out - let the user continue working
+        // The next API call will fail gracefully and they can re-login
+        return;
       }
 
       setCurrentUser(session?.user ?? null);

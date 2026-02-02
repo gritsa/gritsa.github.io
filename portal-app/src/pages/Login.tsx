@@ -207,6 +207,17 @@ const Login: React.FC = () => {
               >
                 Sign In
               </Button>
+
+              <Link
+                color="brand.400"
+                fontSize="sm"
+                fontWeight="500"
+                onClick={() => navigate('/forgot-password')}
+                _hover={{ color: 'brand.300', textDecoration: 'underline' }}
+                alignSelf="flex-end"
+              >
+                Forgot password?
+              </Link>
             </VStack>
           </form>
 

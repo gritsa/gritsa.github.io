@@ -9,10 +9,10 @@ export const supabase = createClient(supabaseUrl, supabaseAnonKey, {
     persistSession: true,
     detectSessionInUrl: true,
     storage: window.localStorage,
-    // Use custom storage key for isolation
     storageKey: 'gritsa-portal-auth',
-    // PKCE flow is more secure and handles token refresh better
     flowType: 'pkce',
+    // Debug mode to see what's happening (removed retryAttempts - not supported)
+    debug: import.meta.env.DEV,
   },
   global: {
     headers: {
