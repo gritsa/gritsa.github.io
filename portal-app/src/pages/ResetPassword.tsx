@@ -25,46 +25,21 @@ const ResetPassword: React.FC = () => {
   const toast = useToast();
 
   useEffect(() => {
-    // Manually extract and set session from URL parameters
-    // This is needed because we disabled detectSessionInUrl to fix tab switching issues
-    const checkSession = async () => {
+    // Manually extract and validate recovery token from URL
+    // We don't set the session yet - just validate the token exists
+    const checkRecoveryToken = () => {
       try {
-        // First, check if there's a hash fragment with token info
         const hashParams = new URLSearchParams(window.location.hash.substring(1));
         const accessToken = hashParams.get('access_token');
-        const refreshToken = hashParams.get('refresh_token');
         const type = hashParams.get('type');
 
-        console.log('[ResetPassword] URL params:', { accessToken: !!accessToken, refreshToken: !!refreshToken, type });
+        console.log('[ResetPassword] URL params:', { accessToken: !!accessToken, type });
 
         if (accessToken && type === 'recovery') {
-          console.log('[ResetPassword] Found recovery tokens in URL, setting session...');
-
-          // Set the session manually
-          const { data, error } = await supabase.auth.setSession({
-            access_token: accessToken,
-            refresh_token: refreshToken || '',
-          });
-
-          if (error) {
-            console.error('[ResetPassword] Error setting session:', error);
-            throw error;
-          }
-
-          if (data.session) {
-            console.log('[ResetPassword] Session set successfully');
-            setValidSession(true);
-            return;
-          }
-        }
-
-        // Fall back to checking existing session
-        const { data: { session } } = await supabase.auth.getSession();
-        if (session) {
-          console.log('[ResetPassword] Found existing session');
+          console.log('[ResetPassword] Valid recovery token found in URL');
           setValidSession(true);
         } else {
-          console.warn('[ResetPassword] No valid session found');
+          console.warn('[ResetPassword] No valid recovery token in URL');
           toast({
             title: 'Invalid or expired link',
             description: 'Please request a new password reset link.',
@@ -85,7 +60,7 @@ const ResetPassword: React.FC = () => {
       }
     };
 
-    checkSession();
+    checkRecoveryToken();
   }, [navigate, toast]);
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -113,15 +88,36 @@ const ResetPassword: React.FC = () => {
     setLoading(true);
 
     try {
+      // First, set the session from URL tokens
+      const hashParams = new URLSearchParams(window.location.hash.substring(1));
+      const accessToken = hashParams.get('access_token');
+      const refreshToken = hashParams.get('refresh_token');
+
+      if (!accessToken || !refreshToken) {
+        throw new Error('Missing recovery tokens');
+      }
+
+      // Set session temporarily to update password
+      const { error: sessionError } = await supabase.auth.setSession({
+        access_token: accessToken,
+        refresh_token: refreshToken,
+      });
+
+      if (sessionError) throw sessionError;
+
+      // Now update the password
       const { error } = await supabase.auth.updateUser({
         password: password,
       });
 
       if (error) throw error;
 
+      // Sign out after successful password change
+      await supabase.auth.signOut();
+
       toast({
         title: 'Password updated!',
-        description: 'Your password has been successfully reset.',
+        description: 'Your password has been successfully reset. Please login with your new password.',
         status: 'success',
         duration: 5000,
       });
