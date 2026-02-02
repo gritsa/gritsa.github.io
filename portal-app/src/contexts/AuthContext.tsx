@@ -151,7 +151,26 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
       if (event === 'TOKEN_REFRESHED') {
         console.log('[AuthContext] Token refreshed successfully');
-        // Session is still valid, no need to fetch user data again
+        // Session is still valid, no need to update anything
+        return;
+      }
+
+      // Handle refresh failure
+      if (event === 'USER_UPDATED' && !session) {
+        console.warn('[AuthContext] User update event with no session - possible refresh failure');
+        // Don't automatically sign out - let the user continue working
+        return;
+      }
+
+      // Skip duplicate SIGNED_IN events if we already have the same user
+      if (event === 'SIGNED_IN' && currentUser && session?.user.id === currentUser.id) {
+        console.log('[AuthContext] Ignoring duplicate SIGNED_IN event for same user');
+        return;
+      }
+
+      // Skip INITIAL_SESSION if we already have user data
+      if (event === 'INITIAL_SESSION' && userData) {
+        console.log('[AuthContext] Ignoring INITIAL_SESSION - user data already loaded');
         return;
       }
 
@@ -159,28 +178,26 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         console.log('[AuthContext] User signed in');
       }
 
-      // Handle refresh failure
-      if (event === 'USER_UPDATED' && !session) {
-        console.warn('[AuthContext] User update event with no session - possible refresh failure');
-        // Don't automatically sign out - let the user continue working
-        // The next API call will fail gracefully and they can re-login
-        return;
-      }
-
       setCurrentUser(session?.user ?? null);
 
       if (session?.user) {
-        try {
-          console.log('[AuthContext] Fetching user data for:', session.user.email);
-          const data = await fetchUserData(session.user);
-          console.log('[AuthContext] User data fetched:', data);
-          if (isMounted) {
-            setUserData(data);
+        // Only fetch user data if we don't have it or it's a different user
+        const needsFetch = !userData || userData.uid !== session.user.id;
+
+        if (needsFetch) {
+          try {
+            console.log('[AuthContext] Fetching user data for:', session.user.email);
+            const data = await fetchUserData(session.user);
+            console.log('[AuthContext] User data fetched:', data);
+            if (isMounted) {
+              setUserData(data);
+            }
+          } catch (error) {
+            console.error('[AuthContext] Error fetching user data:', error);
+            // Don't auto-logout on fetch error - might be temporary network issue
           }
-        } catch (error) {
-          console.error('[AuthContext] Error fetching user data:', error);
-          // Don't auto-logout on fetch error - might be temporary network issue
-          // Let the user try to recover or manually logout
+        } else {
+          console.log('[AuthContext] User data already loaded, skipping fetch');
         }
       } else {
         setUserData(null);
@@ -195,7 +212,8 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       subscription.unsubscribe();
       clearTimeout(safetyTimeout);
     };
-  }, []);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []); // Empty deps - only run once on mount
 
   const signIn = async (email: string, password: string) => {
     const { error } = await supabase.auth.signInWithPassword({
