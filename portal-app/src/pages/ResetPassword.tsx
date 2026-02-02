@@ -37,30 +37,45 @@ const ResetPassword: React.FC = () => {
   const toast = useToast();
 
   useEffect(() => {
-    // Use the special reset password client to detect session from URL
-    const checkRecoveryToken = async () => {
-      try {
-        console.log('[ResetPassword] Checking for recovery session in URL...');
+    let mounted = true;
+    let timeoutId: number;
 
-        // Get session - this will automatically process URL hash parameters
-        const { data: { session }, error } = await resetPasswordClient.auth.getSession();
+    console.log('[ResetPassword] Setting up auth state listener...');
 
-        console.log('[ResetPassword] Session check:', {
-          hasSession: !!session,
-          sessionType: session?.user?.aud,
-          error: error?.message
-        });
+    // Listen to auth state changes - detectSessionInUrl works via events
+    const { data: { subscription } } = resetPasswordClient.auth.onAuthStateChange(async (event, session) => {
+      if (!mounted) return;
 
-        if (error) {
-          console.error('[ResetPassword] Session error:', error);
-          throw error;
-        }
+      console.log('[ResetPassword] Auth event:', event, 'Has session:', !!session);
 
-        if (session && session.user) {
-          console.log('[ResetPassword] Valid recovery session found');
-          setValidSession(true);
-        } else {
-          console.warn('[ResetPassword] No valid recovery session');
+      if (event === 'PASSWORD_RECOVERY' || (session && session.user)) {
+        console.log('[ResetPassword] Valid recovery session detected');
+        setValidSession(true);
+        // Clear timeout since we found the session
+        if (timeoutId) clearTimeout(timeoutId);
+      }
+    });
+
+    // Also check immediately in case session is already in storage
+    resetPasswordClient.auth.getSession().then(({ data: { session } }) => {
+      if (!mounted) return;
+
+      console.log('[ResetPassword] Initial session check:', !!session);
+
+      if (session && session.user) {
+        console.log('[ResetPassword] Session already available');
+        setValidSession(true);
+        if (timeoutId) clearTimeout(timeoutId);
+      }
+    });
+
+    // Set a timeout to show error if no session is detected after 3 seconds
+    timeoutId = setTimeout(() => {
+      if (!mounted) return;
+
+      resetPasswordClient.auth.getSession().then(({ data: { session } }) => {
+        if (!session && mounted) {
+          console.warn('[ResetPassword] No valid recovery session after timeout');
           toast({
             title: 'Invalid or expired link',
             description: 'Please request a new password reset link.',
@@ -69,19 +84,14 @@ const ResetPassword: React.FC = () => {
           });
           setTimeout(() => navigate('/forgot-password'), 2000);
         }
-      } catch (error: any) {
-        console.error('[ResetPassword] Error:', error);
-        toast({
-          title: 'Error',
-          description: error.message || 'Failed to validate reset link',
-          status: 'error',
-          duration: 5000,
-        });
-        setTimeout(() => navigate('/forgot-password'), 2000);
-      }
-    };
+      });
+    }, 3000);
 
-    checkRecoveryToken();
+    return () => {
+      mounted = false;
+      if (timeoutId) clearTimeout(timeoutId);
+      subscription.unsubscribe();
+    };
   }, [navigate, toast]);
 
   const handleSubmit = async (e: React.FormEvent) => {
