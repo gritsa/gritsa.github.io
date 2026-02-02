@@ -22,6 +22,8 @@ import { useAuth } from '../../contexts/AuthContext';
 import { supabase } from '../../config/supabase';
 import PayrollTab from './PayrollTab';
 import HRTab from './HRTab';
+import EmployeeDocumentsTab from './EmployeeDocumentsTab';
+import HRDocumentsTab from './HRDocumentsTab';
 
 interface Employee {
   id: string;
@@ -148,7 +150,7 @@ const HRFinanceDashboard: React.FC = () => {
                       </VStack>
                     </HStack>
 
-                    {/* Tabs for Payroll and HR */}
+                    {/* Tabs for Payroll, HR, and Documents */}
                     <Tabs variant="enclosed" colorScheme="brand">
                       <TabList>
                         <Tab color="whiteAlpha.700" _selected={{ color: 'white', bg: 'rgba(255, 255, 255, 0.1)' }}>
@@ -156,6 +158,12 @@ const HRFinanceDashboard: React.FC = () => {
                         </Tab>
                         <Tab color="whiteAlpha.700" _selected={{ color: 'white', bg: 'rgba(255, 255, 255, 0.1)' }}>
                           HR
+                        </Tab>
+                        <Tab color="whiteAlpha.700" _selected={{ color: 'white', bg: 'rgba(255, 255, 255, 0.1)' }}>
+                          Employee Documents
+                        </Tab>
+                        <Tab color="whiteAlpha.700" _selected={{ color: 'white', bg: 'rgba(255, 255, 255, 0.1)' }}>
+                          HR Documents
                         </Tab>
                       </TabList>
 
@@ -165,6 +173,12 @@ const HRFinanceDashboard: React.FC = () => {
                         </TabPanel>
                         <TabPanel>
                           <HRTab employeeId={selectedEmployee.id} onUpdate={fetchEmployees} />
+                        </TabPanel>
+                        <TabPanel>
+                          <EmployeeDocumentsTab employeeId={selectedEmployee.id} />
+                        </TabPanel>
+                        <TabPanel>
+                          <HRDocumentsTab employeeId={selectedEmployee.id} />
                         </TabPanel>
                       </TabPanels>
                     </Tabs>
