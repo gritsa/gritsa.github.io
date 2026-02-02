@@ -13,8 +13,20 @@ import {
   FormHelperText,
 } from '@chakra-ui/react';
 import { useNavigate } from 'react-router-dom';
-import { supabase } from '../config/supabase';
+import { createClient } from '@supabase/supabase-js';
+import { supabaseUrl, supabaseAnonKey } from '../config/supabase';
 import logo from '../assets/Gritsa-Logo-V2-Subtle.svg';
+
+// Create a separate Supabase client for password reset with detectSessionInUrl enabled
+// This allows the client to automatically process the redirect from Supabase's verify endpoint
+const resetPasswordClient = createClient(supabaseUrl, supabaseAnonKey, {
+  auth: {
+    autoRefreshToken: false,
+    persistSession: false,
+    detectSessionInUrl: true, // Enable for password reset to capture tokens from URL
+    flowType: 'pkce',
+  },
+});
 
 const ResetPassword: React.FC = () => {
   const [password, setPassword] = useState('');
@@ -25,21 +37,30 @@ const ResetPassword: React.FC = () => {
   const toast = useToast();
 
   useEffect(() => {
-    // Manually extract and validate recovery token from URL
-    // We don't set the session yet - just validate the token exists
-    const checkRecoveryToken = () => {
+    // Use the special reset password client to detect session from URL
+    const checkRecoveryToken = async () => {
       try {
-        const hashParams = new URLSearchParams(window.location.hash.substring(1));
-        const accessToken = hashParams.get('access_token');
-        const type = hashParams.get('type');
+        console.log('[ResetPassword] Checking for recovery session in URL...');
 
-        console.log('[ResetPassword] URL params:', { accessToken: !!accessToken, type });
+        // Get session - this will automatically process URL hash parameters
+        const { data: { session }, error } = await resetPasswordClient.auth.getSession();
 
-        if (accessToken && type === 'recovery') {
-          console.log('[ResetPassword] Valid recovery token found in URL');
+        console.log('[ResetPassword] Session check:', {
+          hasSession: !!session,
+          sessionType: session?.user?.aud,
+          error: error?.message
+        });
+
+        if (error) {
+          console.error('[ResetPassword] Session error:', error);
+          throw error;
+        }
+
+        if (session && session.user) {
+          console.log('[ResetPassword] Valid recovery session found');
           setValidSession(true);
         } else {
-          console.warn('[ResetPassword] No valid recovery token in URL');
+          console.warn('[ResetPassword] No valid recovery session');
           toast({
             title: 'Invalid or expired link',
             description: 'Please request a new password reset link.',
@@ -88,32 +109,19 @@ const ResetPassword: React.FC = () => {
     setLoading(true);
 
     try {
-      // First, set the session from URL tokens
-      const hashParams = new URLSearchParams(window.location.hash.substring(1));
-      const accessToken = hashParams.get('access_token');
-      const refreshToken = hashParams.get('refresh_token');
+      console.log('[ResetPassword] Updating password...');
 
-      if (!accessToken || !refreshToken) {
-        throw new Error('Missing recovery tokens');
-      }
-
-      // Set session temporarily to update password
-      const { error: sessionError } = await supabase.auth.setSession({
-        access_token: accessToken,
-        refresh_token: refreshToken,
-      });
-
-      if (sessionError) throw sessionError;
-
-      // Now update the password
-      const { error } = await supabase.auth.updateUser({
+      // Use the reset password client which has the session from URL
+      const { error } = await resetPasswordClient.auth.updateUser({
         password: password,
       });
 
       if (error) throw error;
 
-      // Sign out after successful password change
-      await supabase.auth.signOut();
+      console.log('[ResetPassword] Password updated successfully');
+
+      // Sign out from the reset client (doesn't affect main app session)
+      await resetPasswordClient.auth.signOut();
 
       toast({
         title: 'Password updated!',
@@ -125,6 +133,7 @@ const ResetPassword: React.FC = () => {
       // Redirect to login after short delay
       setTimeout(() => navigate('/login'), 2000);
     } catch (error: any) {
+      console.error('[ResetPassword] Update error:', error);
       toast({
         title: 'Error',
         description: error.message || 'Failed to update password',
