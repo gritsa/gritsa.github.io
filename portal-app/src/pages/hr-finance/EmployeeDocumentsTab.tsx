@@ -19,6 +19,7 @@ import {
 } from '@chakra-ui/react';
 import { ExternalLinkIcon } from '@chakra-ui/icons';
 import { supabase } from '../../config/supabase';
+import { getSecureDocumentUrl } from '../../utils/documentUrl';
 
 interface EmployeeDocumentsTabProps {
   employeeId: string;
@@ -82,11 +83,18 @@ const EmployeeDocumentsTab: React.FC<EmployeeDocumentsTabProps> = ({ employeeId 
     });
   };
 
-  const getPublicUrl = (filePath: string): string => {
-    const { data } = supabase.storage
-      .from('documents')
-      .getPublicUrl(filePath);
-    return data.publicUrl;
+  const handleViewDocument = async (filePath: string) => {
+    try {
+      const url = await getSecureDocumentUrl(filePath);
+      window.open(url, '_blank');
+    } catch (error: any) {
+      toast({
+        title: 'Error opening document',
+        description: error.message,
+        status: 'error',
+        duration: 5000,
+      });
+    }
   };
 
   if (loading) {
@@ -150,15 +158,14 @@ const EmployeeDocumentsTab: React.FC<EmployeeDocumentsTabProps> = ({ employeeId 
                     <Td color="whiteAlpha.700">{formatFileSize(doc.file_size)}</Td>
                     <Td color="whiteAlpha.700">{formatDate(doc.uploaded_at)}</Td>
                     <Td>
-                      <Link href={getPublicUrl(doc.file_path)} isExternal>
-                        <IconButton
-                          aria-label="View document"
-                          icon={<ExternalLinkIcon />}
-                          size="sm"
-                          variant="ghost"
-                          colorScheme="brand"
-                        />
-                      </Link>
+                      <IconButton
+                        aria-label="View document"
+                        icon={<ExternalLinkIcon />}
+                        size="sm"
+                        variant="ghost"
+                        colorScheme="brand"
+                        onClick={() => handleViewDocument(doc.file_path)}
+                      />
                     </Td>
                   </Tr>
                 ))}

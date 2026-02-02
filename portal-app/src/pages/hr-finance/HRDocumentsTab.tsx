@@ -32,6 +32,7 @@ import {
 import { AddIcon, ExternalLinkIcon, DeleteIcon } from '@chakra-ui/icons';
 import { supabase } from '../../config/supabase';
 import { useAuth } from '../../contexts/AuthContext';
+import { getSecureDocumentUrl } from '../../utils/documentUrl';
 
 interface HRDocumentsTabProps {
   employeeId: string;
@@ -215,11 +216,18 @@ const HRDocumentsTab: React.FC<HRDocumentsTabProps> = ({ employeeId }) => {
     });
   };
 
-  const getPublicUrl = (filePath: string): string => {
-    const { data } = supabase.storage
-      .from('documents')
-      .getPublicUrl(filePath);
-    return data.publicUrl;
+  const handleViewDocument = async (filePath: string) => {
+    try {
+      const url = await getSecureDocumentUrl(filePath);
+      window.open(url, '_blank');
+    } catch (error: any) {
+      toast({
+        title: 'Error opening document',
+        description: error.message,
+        status: 'error',
+        duration: 5000,
+      });
+    }
   };
 
   if (loading) {
@@ -280,15 +288,14 @@ const HRDocumentsTab: React.FC<HRDocumentsTabProps> = ({ employeeId }) => {
                       <Td color="whiteAlpha.700">{formatDate(doc.uploaded_at)}</Td>
                       <Td>
                         <HStack spacing={2}>
-                          <Link href={getPublicUrl(doc.file_path)} isExternal>
-                            <IconButton
-                              aria-label="View document"
-                              icon={<ExternalLinkIcon />}
-                              size="sm"
-                              variant="ghost"
-                              colorScheme="brand"
-                            />
-                          </Link>
+                          <IconButton
+                            aria-label="View document"
+                            icon={<ExternalLinkIcon />}
+                            size="sm"
+                            variant="ghost"
+                            colorScheme="brand"
+                            onClick={() => handleViewDocument(doc.file_path)}
+                          />
                           <IconButton
                             aria-label="Delete document"
                             icon={<DeleteIcon />}

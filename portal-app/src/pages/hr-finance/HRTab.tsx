@@ -8,9 +8,13 @@ import {
   Card,
   CardBody,
   Heading,
+  Link,
+  HStack,
 } from '@chakra-ui/react';
+import { ExternalLinkIcon } from '@chakra-ui/icons';
 import { supabase } from '../../config/supabase';
 import type { EmploymentType } from '../../types';
+import { getSecureDocumentUrl } from '../../utils/documentUrl';
 
 interface HRTabProps {
   employeeId: string;
@@ -128,6 +132,21 @@ const HRTab: React.FC<HRTabProps> = ({ employeeId, onUpdate }) => {
     return manager ? (manager.display_name || manager.email) : 'Not assigned';
   };
 
+  // Handle viewing identity documents
+  const handleViewDocument = async (filePath: string) => {
+    try {
+      const url = await getSecureDocumentUrl(filePath);
+      window.open(url, '_blank');
+    } catch (error: any) {
+      toast({
+        title: 'Error opening document',
+        description: error.message,
+        status: 'error',
+        duration: 5000,
+      });
+    }
+  };
+
   return (
     <VStack spacing={6} align="stretch">
       {/* Personal Information */}
@@ -219,12 +238,42 @@ const HRTab: React.FC<HRTabProps> = ({ employeeId, onUpdate }) => {
           <Heading size="sm" mb={4} color="white">Identity Documents</Heading>
           <SimpleGrid columns={{ base: 1, md: 2 }} spacing={4}>
             <Box>
-              <Text fontSize="xs" color="whiteAlpha.600" mb={1}>PAN Card URL</Text>
-              <Text color="white" fontWeight="medium" wordBreak="break-all">{formData.panCardUrl || '—'}</Text>
+              <Text fontSize="xs" color="whiteAlpha.600" mb={1}>PAN Card</Text>
+              {formData.panCardUrl ? (
+                <HStack spacing={2}>
+                  <Link
+                    color="brand.400"
+                    fontWeight="medium"
+                    onClick={() => handleViewDocument(formData.panCardUrl)}
+                    cursor="pointer"
+                    _hover={{ color: 'brand.300' }}
+                  >
+                    View Document
+                  </Link>
+                  <ExternalLinkIcon color="brand.400" />
+                </HStack>
+              ) : (
+                <Text color="white" fontWeight="medium">—</Text>
+              )}
             </Box>
             <Box>
-              <Text fontSize="xs" color="whiteAlpha.600" mb={1}>Aadhaar Card URL</Text>
-              <Text color="white" fontWeight="medium" wordBreak="break-all">{formData.aadhaarCardUrl || '—'}</Text>
+              <Text fontSize="xs" color="whiteAlpha.600" mb={1}>Aadhaar Card</Text>
+              {formData.aadhaarCardUrl ? (
+                <HStack spacing={2}>
+                  <Link
+                    color="brand.400"
+                    fontWeight="medium"
+                    onClick={() => handleViewDocument(formData.aadhaarCardUrl)}
+                    cursor="pointer"
+                    _hover={{ color: 'brand.300' }}
+                  >
+                    View Document
+                  </Link>
+                  <ExternalLinkIcon color="brand.400" />
+                </HStack>
+              ) : (
+                <Text color="white" fontWeight="medium">—</Text>
+              )}
             </Box>
           </SimpleGrid>
         </CardBody>
