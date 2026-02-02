@@ -41,13 +41,18 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     try {
       console.log('[fetchUserData] Starting query for user:', user.id, 'Retry:', retryCount);
 
-      // Fetch user data without aggressive timeout
-      // Supabase client has its own timeout handling (default 60s)
-      const { data, error } = await supabase
+      // Add a 8 second timeout to detect hanging queries (RLS issues)
+      const queryPromise = supabase
         .from('users')
         .select('*')
         .eq('id', user.id)
         .single();
+
+      const timeoutPromise = new Promise<never>((_, reject) =>
+        setTimeout(() => reject(new Error('Query timeout - likely RLS policy blocking access')), 8000)
+      );
+
+      const { data, error } = await Promise.race([queryPromise, timeoutPromise]) as any;
 
       console.log('[fetchUserData] Query response:', { data, error });
 
@@ -132,12 +137,14 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     };
 
     // Set a safety timeout to ensure loading doesn't hang indefinitely
+    // Increased to 10 seconds to handle slow RLS queries
     const safetyTimeout = setTimeout(() => {
       if (!initializationComplete && isMounted) {
-        console.warn('[AuthContext] Initialization timeout - forcing loading to false');
+        console.warn('[AuthContext] Initialization timeout after 10s - forcing loading to false');
+        console.warn('[AuthContext] This usually indicates an RLS policy issue blocking the users table query');
         setLoading(false);
       }
-    }, 5000);
+    }, 10000);
 
     initializeAuth();
 
