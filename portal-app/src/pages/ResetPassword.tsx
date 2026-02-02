@@ -25,15 +25,59 @@ const ResetPassword: React.FC = () => {
   const toast = useToast();
 
   useEffect(() => {
-    // Check if we have a valid recovery session
+    // Manually extract and set session from URL parameters
+    // This is needed because we disabled detectSessionInUrl to fix tab switching issues
     const checkSession = async () => {
-      const { data: { session } } = await supabase.auth.getSession();
-      if (session) {
-        setValidSession(true);
-      } else {
+      try {
+        // First, check if there's a hash fragment with token info
+        const hashParams = new URLSearchParams(window.location.hash.substring(1));
+        const accessToken = hashParams.get('access_token');
+        const refreshToken = hashParams.get('refresh_token');
+        const type = hashParams.get('type');
+
+        console.log('[ResetPassword] URL params:', { accessToken: !!accessToken, refreshToken: !!refreshToken, type });
+
+        if (accessToken && type === 'recovery') {
+          console.log('[ResetPassword] Found recovery tokens in URL, setting session...');
+
+          // Set the session manually
+          const { data, error } = await supabase.auth.setSession({
+            access_token: accessToken,
+            refresh_token: refreshToken || '',
+          });
+
+          if (error) {
+            console.error('[ResetPassword] Error setting session:', error);
+            throw error;
+          }
+
+          if (data.session) {
+            console.log('[ResetPassword] Session set successfully');
+            setValidSession(true);
+            return;
+          }
+        }
+
+        // Fall back to checking existing session
+        const { data: { session } } = await supabase.auth.getSession();
+        if (session) {
+          console.log('[ResetPassword] Found existing session');
+          setValidSession(true);
+        } else {
+          console.warn('[ResetPassword] No valid session found');
+          toast({
+            title: 'Invalid or expired link',
+            description: 'Please request a new password reset link.',
+            status: 'error',
+            duration: 5000,
+          });
+          setTimeout(() => navigate('/forgot-password'), 2000);
+        }
+      } catch (error: any) {
+        console.error('[ResetPassword] Error:', error);
         toast({
-          title: 'Invalid or expired link',
-          description: 'Please request a new password reset link.',
+          title: 'Error',
+          description: error.message || 'Failed to validate reset link',
           status: 'error',
           duration: 5000,
         });
