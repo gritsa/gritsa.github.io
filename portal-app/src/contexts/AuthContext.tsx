@@ -27,6 +27,16 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const [userData, setUserData] = useState<User | null>(null);
   const [loading, setLoading] = useState(true);
 
+  // Use refs to track latest state in auth callback
+  const currentUserRef = React.useRef<SupabaseUser | null>(null);
+  const userDataRef = React.useRef<User | null>(null);
+
+  // Update refs whenever state changes
+  React.useEffect(() => {
+    currentUserRef.current = currentUser;
+    userDataRef.current = userData;
+  }, [currentUser, userData]);
+
   const fetchUserData = async (user: SupabaseUser, retryCount = 0): Promise<User | null> => {
     try {
       console.log('[fetchUserData] Starting query for user:', user.id, 'Retry:', retryCount);
@@ -163,13 +173,13 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       }
 
       // Skip duplicate SIGNED_IN events if we already have the same user
-      if (event === 'SIGNED_IN' && currentUser && session?.user.id === currentUser.id) {
+      if (event === 'SIGNED_IN' && currentUserRef.current && session?.user.id === currentUserRef.current.id) {
         console.log('[AuthContext] Ignoring duplicate SIGNED_IN event for same user');
         return;
       }
 
       // Skip INITIAL_SESSION if we already have user data
-      if (event === 'INITIAL_SESSION' && userData) {
+      if (event === 'INITIAL_SESSION' && userDataRef.current) {
         console.log('[AuthContext] Ignoring INITIAL_SESSION - user data already loaded');
         return;
       }
@@ -182,7 +192,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
       if (session?.user) {
         // Only fetch user data if we don't have it or it's a different user
-        const needsFetch = !userData || userData.uid !== session.user.id;
+        const needsFetch = !userDataRef.current || userDataRef.current.uid !== session.user.id;
 
         if (needsFetch) {
           try {

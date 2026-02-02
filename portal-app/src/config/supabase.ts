@@ -7,11 +7,12 @@ export const supabase = createClient(supabaseUrl, supabaseAnonKey, {
   auth: {
     autoRefreshToken: true,
     persistSession: true,
-    detectSessionInUrl: true,
+    // Disable detectSessionInUrl - causes issues with tab switching
+    detectSessionInUrl: false,
     storage: window.localStorage,
     storageKey: 'gritsa-portal-auth',
     flowType: 'pkce',
-    // Debug mode to see what's happening (removed retryAttempts - not supported)
+    // Debug mode to see what's happening
     debug: import.meta.env.DEV,
   },
   global: {
