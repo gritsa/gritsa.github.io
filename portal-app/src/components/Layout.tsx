@@ -45,6 +45,7 @@ export const Layout: React.FC<LayoutProps> = ({ children }) => {
       { label: 'Dashboard', path: '/' },
       { label: 'My Space', path: '/my-space' },
       { label: 'Timesheet', path: '/timesheet' },
+      { label: 'Expenses', path: '/expenses' },
       { label: 'Leaves', path: '/leaves' },
       { label: 'Holidays', path: '/holidays' },
     ];

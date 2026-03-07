@@ -29,10 +29,15 @@ import {
   ModalFooter,
   useDisclosure,
   Textarea,
+  HStack,
+  Select,
 } from '@chakra-ui/react';
+import { ViewIcon } from '@chakra-ui/icons';
 import { Layout } from '../../components/Layout';
 import { useAuth } from '../../contexts/AuthContext';
 import { supabase } from '../../config/supabase';
+import TimesheetDetailModal from '../../components/TimesheetDetailModal';
+import ExpenseApprovalsTab from './ExpenseApprovalsTab';
 
 interface LeaveRequest {
   id: string;
@@ -77,15 +82,29 @@ interface LeaveBalance {
   used_national_holidays: number;
 }
 
+const MONTHS = [
+  'January', 'February', 'March', 'April', 'May', 'June',
+  'July', 'August', 'September', 'October', 'November', 'December',
+];
+
 const ManagerDashboard: React.FC = () => {
   const { currentUser } = useAuth();
   const [leaveRequests, setLeaveRequests] = useState<LeaveRequest[]>([]);
   const [timesheets, setTimesheets] = useState<Timesheet[]>([]);
   const [reportees, setReportees] = useState<User[]>([]);
   const [selectedLeave, setSelectedLeave] = useState<LeaveRequest | null>(null);
+  const [selectedTimesheet, setSelectedTimesheet] = useState<Timesheet | null>(null);
+  const [timesheetEmployeeName, setTimesheetEmployeeName] = useState('');
   const [reviewComments, setReviewComments] = useState('');
   const [loading, setLoading] = useState(false);
+  const [timesheetFilterEmployee, setTimesheetFilterEmployee] = useState('');
+  const [timesheetFilterYear, setTimesheetFilterYear] = useState(String(new Date().getFullYear()));
   const { isOpen, onOpen, onClose } = useDisclosure();
+  const {
+    isOpen: isTimesheetOpen,
+    onOpen: onTimesheetOpen,
+    onClose: onTimesheetClose,
+  } = useDisclosure();
   const toast = useToast();
 
   useEffect(() => {
@@ -239,7 +258,24 @@ const ManagerDashboard: React.FC = () => {
     }
   };
 
+  const handleViewTimesheet = (timesheet: Timesheet) => {
+    const employee = reportees.find((r) => r.id === timesheet.employee_id);
+    setSelectedTimesheet(timesheet);
+    setTimesheetEmployeeName(employee?.display_name || employee?.email || 'Unknown');
+    onTimesheetOpen();
+  };
+
   const pendingLeaves = leaveRequests.filter((l) => l.status === 'Pending');
+
+  const filteredTimesheets = timesheets
+    .filter((t) => {
+      if (timesheetFilterEmployee && t.employee_id !== timesheetFilterEmployee) return false;
+      if (timesheetFilterYear && String(t.year) !== timesheetFilterYear) return false;
+      return true;
+    })
+    .sort((a, b) => b.year - a.year || b.month - a.month);
+
+  const availableYears = [...new Set(timesheets.map((t) => t.year))].sort((a, b) => b - a);
 
   return (
     <Layout>
@@ -250,6 +286,7 @@ const ManagerDashboard: React.FC = () => {
           <TabList>
             <Tab>Leave Approvals ({pendingLeaves.length})</Tab>
             <Tab>Team Timesheets</Tab>
+            <Tab>Expense Approvals</Tab>
             <Tab>My Team ({reportees.length})</Tab>
           </TabList>
 
@@ -313,8 +350,36 @@ const ManagerDashboard: React.FC = () => {
                 <CardBody>
                   <VStack spacing={4} align="stretch">
                     <Heading size="md">Team Timesheets</Heading>
-                    {timesheets.length === 0 ? (
-                      <Text color="gray.500">No timesheets submitted yet</Text>
+                    <HStack spacing={4}>
+                      <Select
+                        placeholder="All Employees"
+                        value={timesheetFilterEmployee}
+                        onChange={(e) => setTimesheetFilterEmployee(e.target.value)}
+                        maxW="220px"
+                        size="sm"
+                      >
+                        {reportees.map((r) => (
+                          <option key={r.id} value={r.id}>
+                            {r.display_name || r.email}
+                          </option>
+                        ))}
+                      </Select>
+                      <Select
+                        value={timesheetFilterYear}
+                        onChange={(e) => setTimesheetFilterYear(e.target.value)}
+                        maxW="120px"
+                        size="sm"
+                      >
+                        {availableYears.map((y) => (
+                          <option key={y} value={y}>{y}</option>
+                        ))}
+                        {!availableYears.includes(new Date().getFullYear()) && (
+                          <option value={String(new Date().getFullYear())}>{new Date().getFullYear()}</option>
+                        )}
+                      </Select>
+                    </HStack>
+                    {filteredTimesheets.length === 0 ? (
+                      <Text color="gray.500">No timesheets found</Text>
                     ) : (
                       <Box overflowX="auto">
                         <Table>
@@ -325,15 +390,16 @@ const ManagerDashboard: React.FC = () => {
                               <Th>Year</Th>
                               <Th>Status</Th>
                               <Th>Days Filled</Th>
+                              <Th>Actions</Th>
                             </Tr>
                           </Thead>
                           <Tbody>
-                            {timesheets.map((timesheet) => {
+                            {filteredTimesheets.map((timesheet) => {
                               const employee = reportees.find((r) => r.id === timesheet.employee_id);
                               return (
                                 <Tr key={timesheet.id}>
                                   <Td>{employee?.display_name || employee?.email}</Td>
-                                  <Td>{timesheet.month + 1}</Td>
+                                  <Td>{MONTHS[timesheet.month]}</Td>
                                   <Td>{timesheet.year}</Td>
                                   <Td>
                                     <Badge
@@ -343,6 +409,17 @@ const ManagerDashboard: React.FC = () => {
                                     </Badge>
                                   </Td>
                                   <Td>{Object.keys(timesheet.days).length} days</Td>
+                                  <Td>
+                                    <Button
+                                      size="sm"
+                                      leftIcon={<ViewIcon />}
+                                      variant="outline"
+                                      colorScheme="blue"
+                                      onClick={() => handleViewTimesheet(timesheet)}
+                                    >
+                                      View Details
+                                    </Button>
+                                  </Td>
                                 </Tr>
                               );
                             })}
@@ -351,6 +428,17 @@ const ManagerDashboard: React.FC = () => {
                       </Box>
                     )}
                   </VStack>
+                </CardBody>
+              </Card>
+            </TabPanel>
+
+            <TabPanel>
+              <Card>
+                <CardBody>
+                  <ExpenseApprovalsTab
+                    reporteeIds={reportees.map((r) => r.id)}
+                    reportees={reportees}
+                  />
                 </CardBody>
               </Card>
             </TabPanel>
@@ -395,6 +483,13 @@ const ManagerDashboard: React.FC = () => {
           </TabPanels>
         </Tabs>
       </VStack>
+
+      <TimesheetDetailModal
+        isOpen={isTimesheetOpen}
+        onClose={onTimesheetClose}
+        timesheet={selectedTimesheet}
+        employeeName={timesheetEmployeeName}
+      />
 
       <Modal isOpen={isOpen} onClose={onClose}>
         <ModalOverlay />

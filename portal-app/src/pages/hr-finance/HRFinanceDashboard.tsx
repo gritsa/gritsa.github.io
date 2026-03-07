@@ -24,6 +24,8 @@ import PayrollTab from './PayrollTab';
 import HRTab from './HRTab';
 import EmployeeDocumentsTab from './EmployeeDocumentsTab';
 import HRDocumentsTab from './HRDocumentsTab';
+import HRTimesheetsTab from './HRTimesheetsTab';
+import HRExpensesTab from './HRExpensesTab';
 
 interface Employee {
   id: string;
@@ -150,7 +152,7 @@ const HRFinanceDashboard: React.FC = () => {
                       </VStack>
                     </HStack>
 
-                    {/* Tabs for Payroll, HR, and Documents */}
+                    {/* Tabs for Payroll, HR, Documents, and Timesheets */}
                     <Tabs variant="enclosed" colorScheme="brand">
                       <TabList>
                         <Tab color="whiteAlpha.700" _selected={{ color: 'white', bg: 'rgba(255, 255, 255, 0.1)' }}>
@@ -158,6 +160,12 @@ const HRFinanceDashboard: React.FC = () => {
                         </Tab>
                         <Tab color="whiteAlpha.700" _selected={{ color: 'white', bg: 'rgba(255, 255, 255, 0.1)' }}>
                           HR
+                        </Tab>
+                        <Tab color="whiteAlpha.700" _selected={{ color: 'white', bg: 'rgba(255, 255, 255, 0.1)' }}>
+                          Timesheets
+                        </Tab>
+                        <Tab color="whiteAlpha.700" _selected={{ color: 'white', bg: 'rgba(255, 255, 255, 0.1)' }}>
+                          Expenses
                         </Tab>
                         <Tab color="whiteAlpha.700" _selected={{ color: 'white', bg: 'rgba(255, 255, 255, 0.1)' }}>
                           Employee Documents
@@ -173,6 +181,15 @@ const HRFinanceDashboard: React.FC = () => {
                         </TabPanel>
                         <TabPanel>
                           <HRTab employeeId={selectedEmployee.id} onUpdate={fetchEmployees} />
+                        </TabPanel>
+                        <TabPanel>
+                          <HRTimesheetsTab
+                            employeeId={selectedEmployee.id}
+                            employeeName={selectedEmployee.display_name || selectedEmployee.email}
+                          />
+                        </TabPanel>
+                        <TabPanel>
+                          <HRExpensesTab employeeId={selectedEmployee.id} />
                         </TabPanel>
                         <TabPanel>
                           <EmployeeDocumentsTab employeeId={selectedEmployee.id} />

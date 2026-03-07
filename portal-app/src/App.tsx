@@ -14,6 +14,7 @@ import CompleteProfile from './pages/CompleteProfile';
 import EmployeeProfile from './pages/EmployeeProfile';
 import MySpace from './pages/MySpace';
 import Timesheet from './pages/Timesheet';
+import Expenses from './pages/Expenses';
 import LeaveManagement from './pages/LeaveManagement';
 import NationalHolidays from './pages/NationalHolidays';
 import AdminDashboard from './pages/admin/AdminDashboard';
@@ -74,6 +75,15 @@ function App() {
               element={
                 <ProtectedRoute requireProfileComplete>
                   <Timesheet />
+                </ProtectedRoute>
+              }
+            />
+
+            <Route
+              path="/expenses"
+              element={
+                <ProtectedRoute requireProfileComplete>
+                  <Expenses />
                 </ProtectedRoute>
               }
             />

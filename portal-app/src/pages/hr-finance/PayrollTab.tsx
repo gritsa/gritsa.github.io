@@ -75,12 +75,14 @@ const PayrollTab: React.FC<PayrollTabProps> = ({ employeeId }) => {
     loan_recovery: 0,
     total_deductions: 0,
     net_salary: 0,
+    expense_reimbursement: 0,
     total_days_in_month: 0,
     working_days: 0,
     paid_days: 0,
     leaves_taken: 0,
     lop_days: 0,
   });
+  const [approvedExpenses, setApprovedExpenses] = useState<{ id: string; title: string; amount: number; category: string }[]>([]);
 
   useEffect(() => {
     fetchSalaryStructures();
@@ -241,7 +243,7 @@ const PayrollTab: React.FC<PayrollTabProps> = ({ employeeId }) => {
     }
   };
 
-  const handleGeneratePayslip = () => {
+  const handleGeneratePayslip = async () => {
     // Check if payslip already exists
     const existingPayslip = payslips.find(p => p.month === selectedMonth && p.year === selectedYear);
 
@@ -249,6 +251,7 @@ const PayrollTab: React.FC<PayrollTabProps> = ({ employeeId }) => {
       // Edit existing payslip
       setEditingPayslipId(existingPayslip.id);
       const daysInMonth = new Date(selectedYear, selectedMonth, 0).getDate();
+      const expenseTotal = await fetchApprovedExpensesForMonth(selectedMonth, selectedYear);
       setPayslipForm({
         gross_salary: existingPayslip.gross_salary,
         epf: existingPayslip.epf || 0,
@@ -259,6 +262,7 @@ const PayrollTab: React.FC<PayrollTabProps> = ({ employeeId }) => {
         loan_recovery: existingPayslip.loan_recovery || 0,
         total_deductions: existingPayslip.total_deductions,
         net_salary: existingPayslip.net_salary,
+        expense_reimbursement: existingPayslip.details?.expense_reimbursement ?? expenseTotal,
         total_days_in_month: existingPayslip.total_days_in_month || daysInMonth,
         working_days: existingPayslip.working_days || 0,
         paid_days: existingPayslip.paid_days || 0,
@@ -300,6 +304,9 @@ const PayrollTab: React.FC<PayrollTabProps> = ({ employeeId }) => {
     // Calculate days in month
     const daysInMonth = new Date(selectedYear, selectedMonth, 0).getDate();
 
+    // Fetch approved expenses for this month
+    const expenseTotal = await fetchApprovedExpensesForMonth(selectedMonth, selectedYear);
+
     setEditingPayslipId(null);
     setPayslipForm({
       gross_salary: gross,
@@ -310,7 +317,8 @@ const PayrollTab: React.FC<PayrollTabProps> = ({ employeeId }) => {
       lwf: 0,
       loan_recovery: 0,
       total_deductions: 0,
-      net_salary: gross,
+      net_salary: gross + expenseTotal,
+      expense_reimbursement: expenseTotal,
       total_days_in_month: daysInMonth,
       working_days: 0,
       paid_days: 0,
@@ -321,11 +329,31 @@ const PayrollTab: React.FC<PayrollTabProps> = ({ employeeId }) => {
     onPayslipOpen();
   };
 
-  const handleEditPayslip = (payslip: Payslip) => {
+  const fetchApprovedExpensesForMonth = async (month: number, year: number) => {
+    try {
+      // month here is 1-indexed (from payslip), but expenses use 0-indexed payslip_month
+      const { data } = await supabase
+        .from('expenses')
+        .select('id, title, amount, category')
+        .eq('employee_id', employeeId)
+        .eq('status', 'Approved')
+        .eq('payslip_month', month - 1)
+        .eq('payslip_year', year);
+      setApprovedExpenses(data || []);
+      return (data || []).reduce((sum: number, e: any) => sum + e.amount, 0);
+    } catch {
+      setApprovedExpenses([]);
+      return 0;
+    }
+  };
+
+  const handleEditPayslip = async (payslip: Payslip) => {
     setEditingPayslipId(payslip.id);
     setSelectedMonth(payslip.month);
     setSelectedYear(payslip.year);
     const daysInMonth = new Date(payslip.year, payslip.month, 0).getDate();
+    const expenseTotal = await fetchApprovedExpensesForMonth(payslip.month, payslip.year);
+    const savedExpense = payslip.details?.expense_reimbursement ?? expenseTotal;
     setPayslipForm({
       gross_salary: payslip.gross_salary,
       epf: payslip.epf || 0,
@@ -336,6 +364,7 @@ const PayrollTab: React.FC<PayrollTabProps> = ({ employeeId }) => {
       loan_recovery: payslip.loan_recovery || 0,
       total_deductions: payslip.total_deductions,
       net_salary: payslip.net_salary,
+      expense_reimbursement: savedExpense,
       total_days_in_month: payslip.total_days_in_month || daysInMonth,
       working_days: payslip.working_days || 0,
       paid_days: payslip.paid_days || 0,
@@ -372,13 +401,16 @@ const PayrollTab: React.FC<PayrollTabProps> = ({ employeeId }) => {
         lwf: payslipForm.lwf,
         loan_recovery: payslipForm.loan_recovery,
         total_deductions: totalDeductions,
-        net_salary: payslipForm.gross_salary - totalDeductions,
+        net_salary: payslipForm.gross_salary + payslipForm.expense_reimbursement - totalDeductions,
         total_days_in_month: payslipForm.total_days_in_month,
         working_days: payslipForm.working_days,
         paid_days: payslipForm.paid_days,
         leaves_taken: payslipForm.leaves_taken,
         lop_days: payslipForm.lop_days,
-        details: {},
+        details: {
+          expense_reimbursement: payslipForm.expense_reimbursement,
+          expense_items: approvedExpenses,
+        },
         status: 'Draft',
       };
 
@@ -763,6 +795,32 @@ const PayrollTab: React.FC<PayrollTabProps> = ({ employeeId }) => {
                 />
               </FormControl>
 
+              <FormControl>
+                <FormLabel color="whiteAlpha.900">
+                  Expense Reimbursement (₹)
+                  {approvedExpenses.length > 0 && (
+                    <Text as="span" fontSize="xs" color="green.300" ml={2}>
+                      ({approvedExpenses.length} approved expense{approvedExpenses.length > 1 ? 's' : ''} auto-filled)
+                    </Text>
+                  )}
+                </FormLabel>
+                <Input
+                  variant="filled"
+                  type="number"
+                  value={payslipForm.expense_reimbursement}
+                  onChange={(e) => setPayslipForm({
+                    ...payslipForm,
+                    expense_reimbursement: parseFloat(e.target.value) || 0,
+                  })}
+                  color="white"
+                />
+                {approvedExpenses.length > 0 && (
+                  <Text fontSize="xs" color="whiteAlpha.500" mt={1}>
+                    {approvedExpenses.map((e) => `${e.title} (₹${e.amount.toFixed(2)})`).join(' · ')}
+                  </Text>
+                )}
+              </FormControl>
+
               <Text fontSize="md" fontWeight="bold" color="whiteAlpha.900" alignSelf="flex-start">
                 Deductions
               </Text>
@@ -924,7 +982,8 @@ const PayrollTab: React.FC<PayrollTabProps> = ({ employeeId }) => {
                   variant="filled"
                   type="number"
                   value={(
-                    payslipForm.gross_salary -
+                    payslipForm.gross_salary +
+                    payslipForm.expense_reimbursement -
                     (payslipForm.epf +
                       payslipForm.tds +
                       payslipForm.professional_tax +
