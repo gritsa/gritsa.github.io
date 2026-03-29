@@ -28,6 +28,7 @@ import {
 } from '@chakra-ui/react';
 import { supabase } from '../../config/supabase';
 import { useAuth } from '../../contexts/AuthContext';
+import { sendNotification, getUserInfo } from '../../utils/notifications';
 
 interface Expense {
   id: string;
@@ -140,6 +141,28 @@ const ExpenseApprovalsTab: React.FC<ExpenseApprovalsTabProps> = ({ reporteeIds, 
         status: 'success',
         duration: 3000,
       });
+
+      // Notify employee (non-blocking)
+      if (selected) {
+        getUserInfo(selected.employee_id).then((emp) => {
+          if (!emp) return;
+          const months = ['January','February','March','April','May','June','July','August','September','October','November','December'];
+          sendNotification({
+            type: 'expense_reviewed',
+            to_email: emp.email,
+            to_name: emp.name,
+            data: {
+              title: selected.title,
+              amount: selected.amount,
+              status: approve ? 'Approved' : 'Rejected',
+              review_comments: comments || '',
+              ...(approve && updateData.payslip_month != null
+                ? { payslip_month: months[updateData.payslip_month as number], payslip_year: updateData.payslip_year as number }
+                : {}),
+            },
+          });
+        });
+      }
 
       onClose();
       fetchExpenses();

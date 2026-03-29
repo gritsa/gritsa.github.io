@@ -38,6 +38,7 @@ import { useAuth } from '../../contexts/AuthContext';
 import { supabase } from '../../config/supabase';
 import TimesheetDetailModal from '../../components/TimesheetDetailModal';
 import ExpenseApprovalsTab from './ExpenseApprovalsTab';
+import { sendNotification, getUserInfo } from '../../utils/notifications';
 
 interface LeaveRequest {
   id: string;
@@ -232,6 +233,29 @@ const ManagerDashboard: React.FC = () => {
         status: 'success',
         duration: 3000,
       });
+
+      // Notify employee (non-blocking)
+      if (selectedLeave) {
+        getUserInfo(selectedLeave.employee_id).then((emp) => {
+          if (!emp) return;
+          const from = new Date(selectedLeave.from_date);
+          const to = new Date(selectedLeave.to_date);
+          const days = Math.ceil(Math.abs(to.getTime() - from.getTime()) / (1000 * 60 * 60 * 24)) + 1;
+          sendNotification({
+            type: 'leave_reviewed',
+            to_email: emp.email,
+            to_name: emp.name,
+            data: {
+              leave_type: selectedLeave.leave_type,
+              from_date: from.toLocaleDateString('en-IN'),
+              to_date: to.toLocaleDateString('en-IN'),
+              days: String(days),
+              status: approve ? 'Approved' : 'Rejected',
+              review_comments: reviewComments,
+            },
+          });
+        });
+      }
 
       await fetchData();
       onClose();

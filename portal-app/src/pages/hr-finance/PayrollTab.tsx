@@ -34,6 +34,7 @@ import { AddIcon, EditIcon, ViewIcon, DeleteIcon } from '@chakra-ui/icons';
 import { supabase } from '../../config/supabase';
 import { useAuth } from '../../contexts/AuthContext';
 import type { SalaryStructure, Payslip } from '../../types';
+import { sendNotification, getUserInfo } from '../../utils/notifications';
 
 interface PayrollTabProps {
   employeeId: string;
@@ -424,6 +425,26 @@ const PayrollTab: React.FC<PayrollTabProps> = ({ employeeId }) => {
         title: 'Payslip saved successfully',
         status: 'success',
         duration: 3000,
+      });
+
+      // Notify employee (non-blocking)
+      getUserInfo(employeeId).then((emp) => {
+        if (!emp) return;
+        const months = ['January','February','March','April','May','June','July','August','September','October','November','December'];
+        sendNotification({
+          type: 'payslip_generated',
+          to_email: emp.email,
+          to_name: emp.name,
+          data: {
+            month: months[selectedMonth - 1],
+            year: selectedYear,
+            gross_salary: payslipForm.gross_salary,
+            expense_reimbursement: payslipForm.expense_reimbursement,
+            total_deductions: payslipForm.epf + payslipForm.tds + payslipForm.professional_tax + payslipForm.esi + payslipForm.lwf + payslipForm.loan_recovery,
+            net_salary: payslipForm.gross_salary + payslipForm.expense_reimbursement - (payslipForm.epf + payslipForm.tds + payslipForm.professional_tax + payslipForm.esi + payslipForm.lwf + payslipForm.loan_recovery),
+            status: 'Draft',
+          },
+        });
       });
 
       setEditingPayslipId(null);

@@ -37,6 +37,7 @@ import { AddIcon, DeleteIcon } from '@chakra-ui/icons';
 import { Layout } from '../components/Layout';
 import { useAuth } from '../contexts/AuthContext';
 import { supabase } from '../config/supabase';
+import { sendNotification, getUserInfo } from '../utils/notifications';
 
 interface Expense {
   id: string;
@@ -80,7 +81,7 @@ const getStatusColor = (status: string) => {
 };
 
 const Expenses: React.FC = () => {
-  const { currentUser } = useAuth();
+  const { currentUser, userData } = useAuth();
   const [expenses, setExpenses] = useState<Expense[]>([]);
   const [loading, setLoading] = useState(true);
   const [submitting, setSubmitting] = useState(false);
@@ -176,6 +177,26 @@ const Expenses: React.FC = () => {
       });
 
       if (error) throw error;
+
+      // Notify manager (non-blocking)
+      if (userData?.managerId) {
+        getUserInfo(userData.managerId).then((mgr) => {
+          if (!mgr) return;
+          sendNotification({
+            type: 'expense_submitted',
+            to_email: mgr.email,
+            to_name: mgr.name,
+            data: {
+              employee_name: userData.displayName || userData.email || '',
+              title: form.title,
+              category: form.category,
+              expense_date: new Date(form.expense_date).toLocaleDateString('en-IN'),
+              amount: amountNum,
+              description: form.description || '',
+            },
+          });
+        });
+      }
 
       toast({
         title: 'Expense submitted',

@@ -33,6 +33,7 @@ import { AddIcon, ExternalLinkIcon, DeleteIcon } from '@chakra-ui/icons';
 import { supabase } from '../../config/supabase';
 import { useAuth } from '../../contexts/AuthContext';
 import { getSecureDocumentUrl } from '../../utils/documentUrl';
+import { sendNotification, getUserInfo } from '../../utils/notifications';
 
 interface HRDocumentsTabProps {
   employeeId: string;
@@ -143,6 +144,23 @@ const HRDocumentsTab: React.FC<HRDocumentsTabProps> = ({ employeeId }) => {
         title: 'Document uploaded successfully',
         status: 'success',
         duration: 3000,
+      });
+
+      // Notify employee (non-blocking)
+      getUserInfo(employeeId).then((emp) => {
+        if (!emp || !currentUser) return;
+        getUserInfo(currentUser.id).then((uploader) => {
+          sendNotification({
+            type: 'document_uploaded',
+            to_email: emp.email,
+            to_name: emp.name,
+            data: {
+              document_name: uploadForm.documentName,
+              document_type: uploadForm.documentType,
+              uploaded_by_name: uploader?.name || 'HR',
+            },
+          });
+        });
       });
 
       // Reset form and close modal

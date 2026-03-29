@@ -38,6 +38,7 @@ import { Layout } from '../components/Layout';
 import { useAuth } from '../contexts/AuthContext';
 import { supabase } from '../config/supabase';
 import type { LeaveType } from '../types';
+import { sendNotification, getUserInfo } from '../utils/notifications';
 
 interface LeaveRequest {
   id: string;
@@ -303,6 +304,27 @@ const LeaveManagement: React.FC = () => {
         .insert(leaveRequest);
 
       if (error) throw error;
+
+      // Notify manager (non-blocking) — only for pending leaves that need approval
+      if (status === 'Pending' && managerId) {
+        getUserInfo(managerId).then((mgr) => {
+          if (!mgr) return;
+          const days = calculateLeaveDays();
+          sendNotification({
+            type: 'leave_submitted',
+            to_email: mgr.email,
+            to_name: mgr.name,
+            data: {
+              employee_name: leaveRequest.employee_name,
+              leave_type: leaveRequest.leave_type,
+              from_date: new Date(fromDate).toLocaleDateString('en-IN'),
+              to_date: new Date(toDate).toLocaleDateString('en-IN'),
+              days: String(days),
+              reason: reason,
+            },
+          });
+        });
+      }
 
       toast({
         title: status === 'Approved' ? 'Holiday availed successfully' : 'Leave request submitted',
