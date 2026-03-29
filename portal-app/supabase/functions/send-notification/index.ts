@@ -1,6 +1,6 @@
 import { serve } from 'https://deno.land/std@0.168.0/http/server.ts'
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.39.3'
-import nodemailer from 'npm:nodemailer@6.9.9'
+import { SmtpClient } from 'https://deno.land/x/denomailer@1.6.0/mod.ts'
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -295,19 +295,23 @@ serve(async (req) => {
     const smtpUser = Deno.env.get('SMTP_USER') ?? ''
     const smtpPass = Deno.env.get('SMTP_PASS') ?? ''
 
-    const transporter = nodemailer.createTransport({
-      host: 'smtp.gmail.com',
-      port: 587,
-      secure: false,
-      auth: { user: smtpUser, pass: smtpPass },
+    const client = new SmtpClient()
+    await client.connectTLS({
+      hostname: 'smtp.gmail.com',
+      port: 465,
+      username: smtpUser,
+      password: smtpPass,
     })
 
-    await transporter.sendMail({
+    await client.send({
       from: `"Gritsa Portal" <${smtpUser}>`,
       to: payload.to_email,
       subject,
       html,
+      content: 'auto',
     })
+
+    await client.close()
 
     console.log(`Notification sent: type=${payload.type} to=${payload.to_email}`)
 
