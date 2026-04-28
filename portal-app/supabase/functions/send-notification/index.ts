@@ -19,52 +19,97 @@ function createDefaultHtmlEmail(subject: string, message: string): string {
             max-width: 600px;
             margin: 0 auto;
             padding: 20px;
+            background-color: #ffffff;
         }
         .header {
-            background-color: #2c3e50;
-            color: white;
-            padding: 20px;
+            background-color: #ffffff;
+            padding: 30px 20px;
             text-align: center;
+            border-bottom: 2px solid #386BB7;
+        }
+        .logo-placeholder {
+            text-align: center;
+            margin-bottom: 20px;
+        }
+        .logo-placeholder svg {
+            max-width: 200px;
+            height: auto;
         }
         .content {
-            background-color: #f8f9fa;
+            background-color: #ffffff;
             padding: 30px;
-            border-left: 4px solid #3498db;
             margin: 20px 0;
+            border-left: 4px solid #386BB7;
+        }
+        .content h2 {
+            color: #1E3A52;
+            margin-bottom: 15px;
+            font-weight: 600;
+        }
+        .content p {
+            margin-bottom: 15px;
+        }
+        .highlight {
+            background-color: #E8F4FD;
+            padding: 15px;
+            border-left: 3px solid #386BB7;
+            margin: 20px 0;
+            border-radius: 0 4px 4px 0;
         }
         .footer {
-            background-color: #ecf0f1;
+            background-color: #ffffff;
             padding: 20px;
             text-align: center;
             font-size: 12px;
             color: #7f8c8d;
+            border-top: 1px solid #e0e0e0;
+            margin-top: 30px;
         }
         .button {
             display: inline-block;
             padding: 12px 24px;
-            background-color: #3498db;
+            background-color: #386BB7;
             color: white;
             text-decoration: none;
             border-radius: 4px;
             margin: 20px 0;
+            font-weight: 500;
         }
         .button:hover {
-            background-color: #2980b9;
+            background-color: #2c4a8f;
+        }
+        .accent-text {
+            color: #E24C4A;
+            font-weight: 500;
         }
     </style>
 </head>
 <body>
     <div class="header">
-        <h1>📧 Notification</h1>
+        <div class="logo-placeholder">
+            <img src="https://gritsa.com/images/gritsa-logo.svg" alt="Gritsa Technologies" style="height: 100px;">
+        </div>
     </div>
     <div class="content">
         <h2>${escapeHtml(subject)}</h2>
         <p>${escapeHtml(message)}</p>
-        <p style="margin-top: 20px; font-style: italic;">This is an automated notification sent from your application.</p>
+        <div class="highlight">
+            <p style="margin: 0;">This is an automated notification sent from your application.</p>
+        </div>
+        <p style="margin-top: 20px; font-style: italic;">
+            <span class="accent-text">Important:</span> Please review this notification carefully.
+        </p>
+        <div style="text-align: center;">
+            <a href="#" class="button">View Details</a>
+        </div>
     </div>
     <div class="footer">
         <p>Sent on ${new Date().toLocaleDateString()} at ${new Date().toLocaleTimeString()}</p>
         <p>If you did not request this notification, please contact support.</p>
+        <p style="margin-top: 10px; font-size: 11px;">
+            <a href="#" style="color: #7f8c8d; text-decoration: none;">Unsubscribe</a> |
+            <a href="#" style="color: #7f8c8d; text-decoration: none;">Preferences</a>
+        </p>
     </div>
 </body>
 </html>

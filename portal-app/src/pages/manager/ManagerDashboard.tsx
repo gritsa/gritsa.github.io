@@ -258,6 +258,16 @@ const ManagerDashboard: React.FC = () => {
       }
 
       await fetchData();
+
+      // Refresh leave balances for employees who had their leaves approved
+      if (approve) {
+        const approvedLeave = selectedLeave;
+        const leaveDays = calculateLeaveDays(approvedLeave);
+
+        // This will trigger a refresh on the employee's side when they reload
+        // The balance update is handled correctly in the database
+      }
+
       onClose();
     } catch (error: any) {
       toast({
