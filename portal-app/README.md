@@ -1,6 +1,9 @@
 # Gritsa Employee Portal
 
-A comprehensive employee management portal built with React, TypeScript, Firebase, and Chakra UI.
+A comprehensive employee management portal built with React, TypeScript, Supabase, and Chakra UI.
+
+> **Full engineering documentation lives in [`../docs`](../docs/README.md)** — architecture,
+> auth/roles, data model, Edge Functions, and deployment. This file is a quick feature overview.
 
 ## Features
 
@@ -24,30 +27,24 @@ A comprehensive employee management portal built with React, TypeScript, Firebas
 - **Timesheet Review**: View all submitted timesheets
 - **Holiday Management**: Configure national holidays for the year
 
-## Default Admin Account
-
-The application automatically creates a default admin account on first run:
-
-- **Email**: admin@gritsa.com
-- **Password**: 123@gritsa
-
-**Important**: Change the password after first login for security.
-
 ## Getting Started
 
 1. Install dependencies: `npm install`
 2. Start development server: `npm run dev`
 3. Build for production: `npm run build`
 
+There's no admin account seeded automatically — create the first `Administrator` via the
+`supabase/migrations` schema (sign up normally, then update the `role` column on your `users`
+row from the Supabase dashboard).
+
 ## Deployment
 
-The app automatically deploys to GitHub Pages via GitHub Actions when pushing to main branch.
+The app automatically deploys to GitHub Pages via GitHub Actions when pushing to the main
+branch — see [`../docs/deployment.md`](../docs/deployment.md) for how the build output ends up
+committed to the repo root.
 
-## Firebase Setup
+## Backend
 
-Deploy the security rules:
-```bash
-firebase deploy --only firestore:rules,storage:rules
-```
-
-See firestore.rules and storage.rules for the security configuration.
+The backend is Supabase (Postgres + Auth + Storage + Edge Functions), configured via
+`supabase/migrations/` and `supabase/functions/`. See [`../docs/data-model.md`](../docs/data-model.md)
+and [`../docs/edge-functions.md`](../docs/edge-functions.md).

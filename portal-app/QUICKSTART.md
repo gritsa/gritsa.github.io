@@ -1,5 +1,8 @@
 # Quick Start Guide - Gritsa Employee Portal
 
+> For architecture, auth, data model, and deployment details, see [`../docs`](../docs/README.md).
+> This file is a user-facing walkthrough of common tasks.
+
 ## For Developers
 
 ### Local Development
@@ -29,10 +32,10 @@ The built files will be output to the parent directory (root).
 
 ### First Login
 
-1. Go to https://gritsa.github.io
-2. Login with:
-   - Email: `admin@gritsa.com`
-   - Password: `123@gritsa`
+1. Go to https://portal.gritsa.com
+2. There is no auto-created default admin account. Sign up normally, then promote your account
+   to `Administrator` by updating the `role` column on your row in the `users` table (via the
+   Supabase dashboard).
 
 ### Initial Setup Checklist
 
@@ -57,7 +60,7 @@ The built files will be output to the parent directory (root).
 
 ### Registration
 
-1. Go to https://gritsa.github.io
+1. Go to https://portal.gritsa.com
 2. If you have a `@gritsa.com` email, you can register
 3. You'll be automatically assigned the Employee role
 
