@@ -39,6 +39,7 @@ import { useAuth } from '../contexts/AuthContext';
 import { supabase } from '../config/supabase';
 import type { LeaveType } from '../types';
 import { sendNotification, getUserInfo } from '../utils/notifications';
+import { getLeaveBalanceSummary, calculateUsedLeaveDays } from '../utils/leaveBalance';
 
 interface LeaveRequest {
   id: string;
@@ -135,7 +136,7 @@ const LeaveManagement: React.FC = () => {
         setLeaveBalance(balanceData);
       } else {
         // Calculate used days from history as fallback
-        const usedDays = calculateUsedLeaveDaysFromHistory(leavesData || []);
+        const usedDays = calculateUsedLeaveDays(leavesData || [], new Date().getFullYear());
         const newBalance = {
           user_id: currentUser.id,
           year: new Date().getFullYear(),
@@ -190,31 +191,6 @@ const LeaveManagement: React.FC = () => {
     return diffDays;
   };
 
-  const calculateUsedLeaveDaysFromHistory = (leaveHistory: LeaveRequest[]) => {
-    let totalUsedPaidSickDays = 0;
-    let totalUsedHolidayDays = 0;
-
-    leaveHistory.forEach(leave => {
-      if (leave.status === 'Approved') {
-        const from = new Date(leave.from_date);
-        const to = new Date(leave.to_date);
-        const diffTime = Math.abs(to.getTime() - from.getTime());
-        const days = Math.ceil(diffTime / (1000 * 60 * 60 * 24)) + 1;
-
-        if (leave.leave_type === 'Paid' || leave.leave_type === 'Sick') {
-          totalUsedPaidSickDays += days;
-        } else if (leave.leave_type === 'National Holiday') {
-          totalUsedHolidayDays += days;
-        }
-      }
-    });
-
-    return {
-      paidSick: totalUsedPaidSickDays,
-      nationalHolidays: totalUsedHolidayDays
-    };
-  };
-
   const handleSubmit = async () => {
     if (!currentUser || !userData) return;
 
@@ -259,7 +235,7 @@ const LeaveManagement: React.FC = () => {
     } else {
       // For Paid/Sick leaves, check balance
       const leaveDays = calculateLeaveDays();
-      const remaining = (leaveBalance?.paid_and_sick || 18) - (leaveBalance?.used_paid_and_sick || 0);
+      const remaining = getLeaveBalanceSummary(leaveBalance, leaveRequests).remainingPaidSick;
       if (leaveDays > remaining) {
         toast({
           title: 'Insufficient leave balance',
@@ -373,22 +349,10 @@ const LeaveManagement: React.FC = () => {
         selectedHolidayId: '',
       });
 
-      // Update state directly with calculated values instead of refetching
+      // Update state directly instead of refetching; remaining balance is derived
+      // from leaveRequests on every render, so appending here is enough.
       if (status === 'Approved') {
-        // For approved leaves, recalculate the balance immediately
-        const newLeaveRequests = [...leaveRequests, leaveRequest as LeaveRequest];
-        const usedDays = calculateUsedLeaveDaysFromHistory(newLeaveRequests);
-
-        setLeaveBalance({
-          user_id: currentUser.id,
-          year: new Date().getFullYear(),
-          paid_and_sick: 18,
-          national_holidays: 10,
-          used_paid_and_sick: usedDays.paidSick,
-          used_national_holidays: usedDays.nationalHolidays,
-        });
-
-        setLeaveRequests(newLeaveRequests);
+        setLeaveRequests([...leaveRequests, leaveRequest as LeaveRequest]);
       } else {
         // For pending leaves, refetch to get updated leave history
         await fetchData();
@@ -418,60 +382,13 @@ const LeaveManagement: React.FC = () => {
     }
   };
 
-const calculateRemainingPaidLeaves = (balance: LeaveBalance | null, leaveHistory: LeaveRequest[]) => {
-  // Use fallback calculation if balance data is not available
-  if (!balance) {
-    // Calculate used days from history
-    const usedDays = calculateUsedLeaveDaysFromHistory(leaveHistory);
-
-    return {
-      remaining: 18 - usedDays.paidSick,
-      used: usedDays.paidSick,
-      total: 18,
-      useFallback: true
-    };
-  }
-
-  // Use balance data directly if available
-  return {
-    remaining: (balance.paid_and_sick || 18) - (balance.used_paid_and_sick || 0),
-    used: balance.used_paid_and_sick || 0,
-    total: balance.paid_and_sick || 18,
-    useFallback: false
-  };
-};
-
-  const remainingPaidLeavesInfo = calculateRemainingPaidLeaves(leaveBalance, leaveRequests);
-  const remainingPaidLeaves = remainingPaidLeavesInfo.remaining;
-  const usedPaidLeaves = remainingPaidLeavesInfo.used;
-  const useFallbackCalculation = remainingPaidLeavesInfo.useFallback;
-
-  const calculateRemainingHolidays = (balance: LeaveBalance | null, leaveHistory: LeaveRequest[]) => {
-  // Use fallback calculation if balance data is not available
-  if (!balance) {
-    // Calculate used days from history
-    const usedDays = calculateUsedLeaveDaysFromHistory(leaveHistory);
-    return {
-      remaining: 10 - usedDays.nationalHolidays,
-      used: usedDays.nationalHolidays,
-      total: 10,
-      useFallback: true
-    };
-  }
-
-  // Use balance data directly if available
-  return {
-    remaining: (balance.national_holidays || 10) - (balance.used_national_holidays || 0),
-    used: balance.used_national_holidays || 0,
-    total: balance.national_holidays || 10,
-    useFallback: false
-  };
-};
-
-const remainingHolidaysInfo = calculateRemainingHolidays(leaveBalance, leaveRequests);
-const remainingHolidays = remainingHolidaysInfo.remaining;
-const usedHolidays = remainingHolidaysInfo.used;
-const useFallbackCalculationForHolidays = remainingHolidaysInfo.useFallback;
+const leaveBalanceSummary = getLeaveBalanceSummary(leaveBalance, leaveRequests);
+const remainingPaidLeaves = leaveBalanceSummary.remainingPaidSick;
+const usedPaidLeaves = leaveBalanceSummary.usedPaidSick;
+const totalPaidLeaves = leaveBalanceSummary.totalPaidSick;
+const remainingHolidays = leaveBalanceSummary.remainingHolidays;
+const usedHolidays = leaveBalanceSummary.usedHolidays;
+const totalHolidays = leaveBalanceSummary.totalHolidays;
 
   return (
     <Layout>
@@ -490,12 +407,7 @@ const useFallbackCalculationForHolidays = remainingHolidaysInfo.useFallback;
                 <StatLabel>Paid & Sick Leaves</StatLabel>
                 <StatNumber>{remainingPaidLeaves}</StatNumber>
                 <StatHelpText>
-                  Used: {useFallbackCalculation ? usedPaidLeaves : leaveBalance?.used_paid_and_sick || 0} / {leaveBalance?.paid_and_sick || 18}
-                  {useFallbackCalculation && (
-                    <Text fontSize="xs" color="gray.600" ml={2}>
-                      (calculated from history)
-                    </Text>
-                  )}
+                  Used: {usedPaidLeaves} / {totalPaidLeaves}
                 </StatHelpText>
               </Stat>
             </CardBody>
@@ -507,12 +419,7 @@ const useFallbackCalculationForHolidays = remainingHolidaysInfo.useFallback;
                 <StatLabel>National Holidays</StatLabel>
                 <StatNumber>{remainingHolidays}</StatNumber>
                 <StatHelpText>
-                  Used: {useFallbackCalculationForHolidays ? usedHolidays : leaveBalance?.used_national_holidays || 0} / {leaveBalance?.national_holidays || 10}
-                  {useFallbackCalculationForHolidays && (
-                    <Text fontSize="xs" color="gray.600" ml={2}>
-                      (calculated from history)
-                    </Text>
-                  )}
+                  Used: {usedHolidays} / {totalHolidays}
                 </StatHelpText>
               </Stat>
             </CardBody>

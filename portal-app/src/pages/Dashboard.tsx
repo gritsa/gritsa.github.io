@@ -17,6 +17,7 @@ import { useNavigate } from 'react-router-dom';
 import { Layout } from '../components/Layout';
 import { useAuth } from '../contexts/AuthContext';
 import { supabase } from '../config/supabase';
+import { getLeaveBalanceSummary } from '../utils/leaveBalance';
 
 interface EmployeeProfile {
   full_name: string;
@@ -44,7 +45,6 @@ const Dashboard: React.FC = () => {
   const [leaveBalance, setLeaveBalance] = useState<LeaveBalance | null>(null);
   const [loading, setLoading] = useState(true);
   const [leaveHistory, setLeaveHistory] = useState<any[]>([]);
-  const [usingCalculatedBalance, setUsingCalculatedBalance] = useState(false);
 
   useEffect(() => {
     const fetchData = async () => {
@@ -124,66 +124,9 @@ const Dashboard: React.FC = () => {
     fetchData();
   }, [currentUser, userData]);
 
-  const calculateUsedLeaveDaysFromHistory = (leaveHistory: any[]) => {
-    let totalUsedPaidSickDays = 0;
-    let totalUsedHolidayDays = 0;
-
-    leaveHistory.forEach(leave => {
-      if (leave.status === 'Approved') {
-        const from = new Date(leave.from_date);
-        const to = new Date(leave.to_date);
-        const diffTime = Math.abs(to.getTime() - from.getTime());
-        const days = Math.ceil(diffTime / (1000 * 60 * 60 * 24)) + 1;
-
-        if (leave.leave_type === 'Paid' || leave.leave_type === 'Sick') {
-          totalUsedPaidSickDays += days;
-        } else if (leave.leave_type === 'National Holiday') {
-          totalUsedHolidayDays += days;
-        }
-      }
-    });
-
-    return {
-      paidSick: totalUsedPaidSickDays,
-      nationalHolidays: totalUsedHolidayDays
-    };
-  };
-
-  const calculateRemainingPaidLeaves = (balance: LeaveBalance | null, history: any[]) => {
-    if (!balance) return 18; // Default fallback
-
-    // Check if balance data is likely incorrect (used_paid_and_sick is 0 but there are approved leaves)
-    const usedDaysFromHistory = calculateUsedLeaveDaysFromHistory(history);
-    if (balance.used_paid_and_sick === 0 && usedDaysFromHistory.paidSick > 0) {
-      return balance.paid_and_sick - usedDaysFromHistory.paidSick;
-    }
-
-    return balance.paid_and_sick - balance.used_paid_and_sick;
-  };
-
-  const calculateRemainingHolidays = (balance: LeaveBalance | null, history: any[]) => {
-    if (!balance) return 10; // Default fallback
-
-    // Check if balance data is likely incorrect (used_national_holidays is 0 but there are approved holidays)
-    const usedDaysFromHistory = calculateUsedLeaveDaysFromHistory(history);
-    if (balance.used_national_holidays === 0 && usedDaysFromHistory.nationalHolidays > 0) {
-      return balance.national_holidays - usedDaysFromHistory.nationalHolidays;
-    }
-
-    return balance.national_holidays - balance.used_national_holidays;
-  };
-
-const remainingPaidLeaves = calculateRemainingPaidLeaves(leaveBalance, leaveHistory);
-const remainingHolidays = calculateRemainingHolidays(leaveBalance, leaveHistory);
-
-// Check if we're using calculated balance
-const usingCalculatedPaidLeaves = leaveBalance?.used_paid_and_sick === 0 &&
-  leaveHistory.some(leave => leave.status === 'Approved' &&
-    (leave.leave_type === 'Paid' || leave.leave_type === 'Sick'));
-
-const usingCalculatedHolidays = leaveBalance?.used_national_holidays === 0 &&
-  leaveHistory.some(leave => leave.status === 'Approved' &&
-    leave.leave_type === 'National Holiday');
+  const leaveBalanceSummary = getLeaveBalanceSummary(leaveBalance, leaveHistory);
+  const remainingPaidLeaves = leaveBalanceSummary.remainingPaidSick;
+  const remainingHolidays = leaveBalanceSummary.remainingHolidays;
 
 return (
   <Layout>
@@ -203,7 +146,6 @@ return (
               <StatNumber color="white">{remainingPaidLeaves}</StatNumber>
               <StatHelpText color="whiteAlpha.600">
                 Remaining this year
-                {usingCalculatedPaidLeaves && ' (calculated from history)'}
               </StatHelpText>
             </Stat>
           </CardBody>
@@ -216,7 +158,6 @@ return (
               <StatNumber color="white">{remainingHolidays}</StatNumber>
               <StatHelpText color="whiteAlpha.600">
                 Available to use
-                {usingCalculatedHolidays && ' (calculated from history)'}
               </StatHelpText>
             </Stat>
           </CardBody>
