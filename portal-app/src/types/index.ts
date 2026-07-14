@@ -183,3 +183,29 @@ export interface PersonalDocument {
   created_at: string;
   updated_at: string;
 }
+
+export type OffboardingStatus = 'Active' | 'Retained' | 'Completed' | 'Cancelled';
+
+export interface EmployeeOffboarding {
+  id: string;
+  employee_id: string;
+  initiated_by: string;
+  initiated_at: string;
+  notice_period_days: number;
+  last_working_date: string;
+  personal_email?: string;
+  status: OffboardingStatus;
+  stage1_completed_at?: string;
+  stage1_notes?: string;
+  retained: boolean;
+  stage2_completed_at?: string;
+  stage2_notes?: string;
+  stage3_completed_at?: string;
+  stage3_notes?: string;
+  stage4_completed_at?: string;
+  stage4_notes?: string;
+  closed_at?: string;
+  closed_by?: string;
+  created_at: string;
+  updated_at: string;
+}

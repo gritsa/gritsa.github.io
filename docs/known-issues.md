@@ -28,6 +28,19 @@ tell from the frontend, or from a non-2xx response, that email delivery is broke
 go read the Edge Function logs. If email notifications seem to have silently stopped working,
 check Supabase Edge Function logs for `send-notification` before assuming the code is fine.
 
+## `sendNotification`'s `data` payload is never actually used
+
+Every call site across the app (leave, expense, payslip, document, offboarding notifications)
+passes a `data: {...}` object with the specifics — leave dates, amounts, employee names. The
+Edge Function's `buildNotification` never reads `payload.data` at all; it only ever uses
+`payload.subject`/`payload.message` (both always omitted by the frontend wrapper,
+`src/utils/notifications.ts`), so every notification email renders the same generic boilerplate
+("Notification: leave_reviewed" / "This is a leave_reviewed notification.") regardless of what's
+in `data`. This is long-standing, not something introduced recently — if you're asked to make
+notification emails actually say something specific, the fix is either extending
+`sendNotification`'s payload to accept `subject`/`message` strings built from `data` on the
+frontend, or teaching `buildNotification` in the Edge Function to template per `type`.
+
 ## Types are hand-maintained, not generated
 
 `src/types/index.ts` mirrors the Postgres schema by hand. There's no `supabase gen types

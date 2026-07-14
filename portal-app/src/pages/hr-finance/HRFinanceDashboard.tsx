@@ -26,6 +26,7 @@ import EmployeeDocumentsTab from './EmployeeDocumentsTab';
 import HRDocumentsTab from './HRDocumentsTab';
 import HRTimesheetsTab from './HRTimesheetsTab';
 import HRExpensesTab from './HRExpensesTab';
+import OffboardingTab from './OffboardingTab';
 
 interface Employee {
   id: string;
@@ -173,6 +174,9 @@ const HRFinanceDashboard: React.FC = () => {
                         <Tab color="whiteAlpha.700" _selected={{ color: 'white', bg: 'rgba(255, 255, 255, 0.1)' }}>
                           HR Documents
                         </Tab>
+                        <Tab color="whiteAlpha.700" _selected={{ color: 'white', bg: 'rgba(255, 255, 255, 0.1)' }}>
+                          Offboarding
+                        </Tab>
                       </TabList>
 
                       <TabPanels>
@@ -196,6 +200,13 @@ const HRFinanceDashboard: React.FC = () => {
                         </TabPanel>
                         <TabPanel>
                           <HRDocumentsTab employeeId={selectedEmployee.id} />
+                        </TabPanel>
+                        <TabPanel>
+                          <OffboardingTab
+                            employeeId={selectedEmployee.id}
+                            employeeName={selectedEmployee.display_name || selectedEmployee.email}
+                            employeeEmail={selectedEmployee.email}
+                          />
                         </TabPanel>
                       </TabPanels>
                     </Tabs>

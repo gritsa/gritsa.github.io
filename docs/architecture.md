@@ -76,4 +76,5 @@ mirrored by the Postgres `user_role` enum. Role-specific pages live under
   `TimesheetReview`, `HolidayManagement`
 - **Manager** (`pages/manager/`): `ManagerDashboard` (team view), `ExpenseApprovalsTab`
 - **HR-Finance** (`pages/hr-finance/`): `HRFinanceDashboard` tabs for payroll (`PayrollTab`),
-  employee documents, timesheets, and expenses across the whole org
+  employee documents, timesheets, expenses, and employee offboarding (`OffboardingTab`) across
+  the whole org

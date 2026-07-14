@@ -6,7 +6,9 @@ type NotificationType =
   | 'expense_submitted'
   | 'expense_reviewed'
   | 'payslip_generated'
-  | 'document_uploaded';
+  | 'document_uploaded'
+  | 'offboarding_started'
+  | 'exit_documents_ready';
 
 interface NotificationPayload {
   type: NotificationType;
