@@ -99,9 +99,13 @@ assigns a set to employees with a due date for digital signature.
   to the caller, that `policy_id` actually belongs to that assignment's `policy_set_id` (otherwise
   a caller with more than one assignment could pair a real assignment with a borrowed `policy_id`
   and fool the completion count without signing the real policies), and that
-  `signature_file_path` matches the caller's own `employee_signatures.file_path` row (otherwise
-  that column is unvalidated client input). No UPDATE/DELETE policy exists for anyone at the app
-  layer — signed rows are permanent.
+  `signature_file_path` is exactly the deterministic destination path the app computes for this
+  `(employee, assignment, policy)` triple — not just "unvalidated client input," but also not a
+  literal comparison to `employee_signatures.file_path` (see `016_fix_policy_signatures_insert_check.sql`:
+  the source and destination paths are never equal by design, since the whole point of the copy is
+  that it lives somewhere else; the original 015 check compared them directly and rejected every
+  real sign attempt with a 403, caught in live testing immediately after 015 shipped). No
+  UPDATE/DELETE policy exists for anyone at the app layer — signed rows are permanent.
 
 **`policy_set_id`/`policy_id` foreign keys use `ON DELETE RESTRICT`**, not the `CASCADE` used
 everywhere else in this schema for `employee_id`/`user_id` FKs — deliberately, since these are
