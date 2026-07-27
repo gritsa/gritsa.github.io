@@ -209,3 +209,56 @@ export interface EmployeeOffboarding {
   created_at: string;
   updated_at: string;
 }
+
+export interface PolicySet {
+  id: string;
+  name: string;
+  description?: string;
+  is_active: boolean;
+  created_by?: string;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface Policy {
+  id: string;
+  policy_set_id: string;
+  title: string;
+  content: string; // HTML produced by the Tiptap editor
+  order_index: number;
+  created_by?: string;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface EmployeeSignature {
+  id: string;
+  user_id: string;
+  file_path: string;
+  created_at: string;
+  updated_at: string;
+}
+
+export type PolicyAssignmentStatus = 'Pending' | 'Completed';
+
+export interface PolicyAssignment {
+  id: string;
+  policy_set_id: string;
+  employee_id: string;
+  assigned_by: string;
+  assigned_at: string;
+  due_date?: string;
+  status: PolicyAssignmentStatus;
+  completed_at?: string;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface PolicySignature {
+  id: string;
+  assignment_id: string;
+  policy_id: string;
+  employee_id: string;
+  signature_file_path: string;
+  signed_at: string;
+}

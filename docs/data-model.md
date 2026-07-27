@@ -73,13 +73,64 @@ in the frontend. The frontend only decides what to *render*; the database decide
     `leave_balances` (see below), the "manage" policy has no `auth.uid() = employee_id`
     restriction, so an admin/HR-Finance user can actually write to another employee's row.
 
+## Policies (`015_policies_module.sql`)
+
+HR authors policies (rich text, stored as Tiptap-produced HTML) grouped into **policy sets**, and
+assigns a set to employees with a due date for digital signature.
+
+- **`policy_sets`** — name/description, `is_active`. Not directly browsable by employees (see RLS
+  below) — only reachable through their own assignments.
+- **`policies`** — belongs to a set, `title` + `content` (HTML) + `order_index`.
+- **`employee_signatures`** — one reusable signature image per employee (`user_id` UNIQUE),
+  pointing at `{employee_id}/signature/signature.png` in the `documents` bucket. Redrawing
+  overwrites the same file/row rather than creating a new one.
+- **`policy_assignments`** — one row per "send" event (`policy_set_id`, `employee_id`,
+  `assigned_by`, `due_date`). Re-sending a set to a new joiner, or re-sending it to someone who
+  already completed it, is just another insert — history accumulates, nothing is overwritten.
+  `status` (`Pending`/`Completed`) is **server-computed**, never client-set: an `AFTER INSERT ON
+  policy_signatures` trigger (`SECURITY DEFINER`, same idiom as `handle_new_user`) flips it to
+  `Completed` once every policy in the set has a signed row for that assignment. Employees have no
+  UPDATE policy on this table at all — the trigger is the only way status changes.
+- **`policy_signatures`** — one immutable row per signed policy per assignment, holding
+  `signature_file_path` (a copy of the employee's signature made *at the moment of signing*, via
+  `storage.copy()`, at `{employee_id}/policy-signatures/{assignment_id}_{policy_id}.png` — so a
+  later signature redraw doesn't retroactively change what a past signature "looked like"). The
+  INSERT policy checks three things, not just assignment ownership: that `assignment_id` belongs
+  to the caller, that `policy_id` actually belongs to that assignment's `policy_set_id` (otherwise
+  a caller with more than one assignment could pair a real assignment with a borrowed `policy_id`
+  and fool the completion count without signing the real policies), and that
+  `signature_file_path` matches the caller's own `employee_signatures.file_path` row (otherwise
+  that column is unvalidated client input). No UPDATE/DELETE policy exists for anyone at the app
+  layer — signed rows are permanent.
+
+**`policy_set_id`/`policy_id` foreign keys use `ON DELETE RESTRICT`**, not the `CASCADE` used
+everywhere else in this schema for `employee_id`/`user_id` FKs — deliberately, since these are
+*content* parents whose deletion would destroy compliance history. The app enforces the same rule
+earlier: `PoliciesManagement.tsx` disables adding/removing policies from a set once it has ≥1
+assignment (only text edits and reordering remain), and disables editing/deleting a policy once it
+has ≥1 signature. **Known limitation:** this locking is UI-only — an HR-Finance/Administrator
+account's `FOR ALL` RLS policy has no extra `CHECK` beyond the role match, so it's still possible
+to bypass the lock and delete a signed policy directly (e.g. via the browser console), the same way
+nothing stops HR from deleting `employee_documents` or `salary_structures` rows outside the UI
+either. This is an accepted, documented gap, not a bug — RLS's job in this schema is stopping
+*employees*, not policing privileged roles.
+
+The completion trigger also means adding a policy to a set *after* some assignments were already
+`Completed` won't reopen them — the denominator changed but nothing re-evaluates old assignments.
+This is exactly what the locked-once-assigned rule above prevents from happening in the first
+place; if you ever see a `Completed` assignment with fewer signatures than the set's current
+policy count, that's how it happened.
+
 ## Storage
 
 Single bucket: **`documents`** (created in `002_storage_policies.sql`). Path convention is
-`{user_id}/...` so RLS storage policies can check `auth.uid()` against the path prefix. Holds
-PAN/Aadhaar uploads, HR/personal documents, and expense receipts. Reads for anything other than
-the file's own owner go through the `document-proxy` Edge Function rather than a signed URL
-directly from the client — see [edge-functions.md](edge-functions.md).
+`{user_id}/...` so RLS storage policies can check `auth.uid()` against the path prefix — this is
+also why the Policies module's signature paths above are read/writable by their owner and by
+HR-Finance/Administrator with zero new storage policies (see `013_fix_storage_rls.sql`'s
+role-wide policies). Holds PAN/Aadhaar uploads, HR/personal documents, expense receipts, and
+signature images. Reads for anything other than the file's own owner go through the
+`document-proxy` Edge Function rather than a signed URL directly from the client — see
+[edge-functions.md](edge-functions.md).
 
 ## RLS pattern used throughout
 

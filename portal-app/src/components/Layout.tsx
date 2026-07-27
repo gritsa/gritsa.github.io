@@ -48,10 +48,12 @@ export const Layout: React.FC<LayoutProps> = ({ children }) => {
       { label: 'Expenses', path: '/expenses' },
       { label: 'Leaves', path: '/leaves' },
       { label: 'Holidays', path: '/holidays' },
+      { label: 'Policies', path: '/policies' },
     ];
 
     if (userData?.role === 'HR-Finance' || userData?.role === 'Administrator') {
       items.push({ label: 'HR & Finance', path: '/hr-finance' });
+      items.push({ label: 'Manage Policies', path: '/policies/manage' });
     }
 
     if (userData?.role === 'Manager' || userData?.role === 'Administrator') {

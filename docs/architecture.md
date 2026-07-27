@@ -71,10 +71,12 @@ mirrored by the Postgres `user_role` enum. Role-specific pages live under
 
 - **Onboarding**: `Login`, `Signup`, `ForgotPassword`, `ResetPassword`, `CompleteProfile`
 - **Employee self-service**: `Dashboard`, `EmployeeProfile`, `MySpace` (personal documents),
-  `Timesheet`, `Expenses`, `LeaveManagement`, `NationalHolidays`
+  `Timesheet`, `Expenses`, `LeaveManagement`, `NationalHolidays`, `Policies` (review and digitally
+  sign policies assigned to you, using a reusable drawn signature)
 - **Admin** (`pages/admin/`): `UserManagement`, `ProjectManagement`, `OrgChart`,
   `TimesheetReview`, `HolidayManagement`
 - **Manager** (`pages/manager/`): `ManagerDashboard` (team view), `ExpenseApprovalsTab`
 - **HR-Finance** (`pages/hr-finance/`): `HRFinanceDashboard` tabs for payroll (`PayrollTab`),
   employee documents, timesheets, expenses, and employee offboarding (`OffboardingTab`) across
-  the whole org
+  the whole org; `PoliciesManagement` (author policies with a Tiptap rich-text editor, group them
+  into reusable sets, assign a set to employees with a due date, and track signing progress)

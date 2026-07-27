@@ -8,7 +8,9 @@ type NotificationType =
   | 'payslip_generated'
   | 'document_uploaded'
   | 'offboarding_started'
-  | 'exit_documents_ready';
+  | 'exit_documents_ready'
+  | 'policy_set_assigned'
+  | 'policy_set_completed';
 
 interface NotificationPayload {
   type: NotificationType;
