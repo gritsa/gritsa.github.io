@@ -6,7 +6,6 @@ import {
   FormControl,
   FormLabel,
   Input,
-  Select,
   SimpleGrid,
   Text,
   useToast,
@@ -33,6 +32,7 @@ import {
 import { AddIcon, EditIcon, ViewIcon, DeleteIcon } from '@chakra-ui/icons';
 import { supabase } from '../../config/supabase';
 import { useAuth } from '../../contexts/AuthContext';
+import MonthYearFilter from '../../components/MonthYearFilter';
 import type { SalaryStructure, Payslip } from '../../types';
 import { sendNotification, getUserInfo } from '../../utils/notifications';
 
@@ -87,8 +87,12 @@ const PayrollTab: React.FC<PayrollTabProps> = ({ employeeId }) => {
 
   useEffect(() => {
     fetchSalaryStructures();
-    fetchPayslips();
   }, [employeeId]);
+
+  useEffect(() => {
+    fetchPayslips();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [employeeId, selectedMonth, selectedYear]);
 
   const fetchSalaryStructures = async () => {
     try {
@@ -111,6 +115,8 @@ const PayrollTab: React.FC<PayrollTabProps> = ({ employeeId }) => {
         .from('payslips')
         .select('*')
         .eq('employee_id', employeeId)
+        .eq('month', selectedMonth)
+        .eq('year', selectedYear)
         .order('year', { ascending: false })
         .order('month', { ascending: false });
 
@@ -573,32 +579,13 @@ const PayrollTab: React.FC<PayrollTabProps> = ({ employeeId }) => {
           <HStack justify="space-between" mb={4}>
             <Heading size="sm" color="white">Payslips</Heading>
             <HStack>
-              <Select
-                size="sm"
-                value={selectedMonth}
-                onChange={(e) => setSelectedMonth(parseInt(e.target.value))}
-                maxW="120px"
-                variant="filled"
-                color="white"
-              >
-                {Array.from({ length: 12 }, (_, i) => (
-                  <option key={i + 1} value={i + 1}>
-                    {new Date(2000, i).toLocaleString('default', { month: 'long' })}
-                  </option>
-                ))}
-              </Select>
-              <Select
-                size="sm"
-                value={selectedYear}
-                onChange={(e) => setSelectedYear(parseInt(e.target.value))}
-                maxW="100px"
-                variant="filled"
-                color="white"
-              >
-                {[2024, 2025, 2026, 2027].map((year) => (
-                  <option key={year} value={year}>{year}</option>
-                ))}
-              </Select>
+              <MonthYearFilter
+                month={selectedMonth}
+                year={selectedYear}
+                onMonthChange={(m) => { if (m !== '') setSelectedMonth(m); }}
+                onYearChange={(y) => { if (y !== '') setSelectedYear(y); }}
+                monthOffset={1}
+              />
               <Button
                 size="sm"
                 variant="gradient"

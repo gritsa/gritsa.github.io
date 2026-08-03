@@ -50,6 +50,7 @@ import { supabase } from '../../config/supabase';
 import { sendNotification } from '../../utils/notifications';
 import PolicyEditorModal from '../../components/PolicyEditorModal';
 import PolicySigningModal from '../../components/PolicySigningModal';
+import { downloadSignedPolicyPacket } from '../../utils/policyDocumentPdf';
 import type { PolicySet, Policy, PolicyAssignment } from '../../types';
 
 interface Employee {
@@ -104,6 +105,7 @@ const PoliciesManagement: React.FC = () => {
   const [loadingAssignments, setLoadingAssignments] = useState(false);
   const [viewAssignment, setViewAssignment] = useState<AssignmentRow | null>(null);
   const viewModal = useDisclosure();
+  const [downloadingId, setDownloadingId] = useState<string | null>(null);
 
   useEffect(() => {
     if (!isHRFinance) return;
@@ -371,6 +373,30 @@ const PoliciesManagement: React.FC = () => {
   const openView = (row: AssignmentRow) => {
     setViewAssignment(row);
     viewModal.onOpen();
+  };
+
+  const handleDownload = async (row: AssignmentRow) => {
+    const employee = employeeById(row.employee_id);
+    const employeeName = employee?.display_name || employee?.email || row.employee_id;
+    const set = policySets.find((s) => s.id === row.policy_set_id);
+    setDownloadingId(row.id);
+    try {
+      const result = await downloadSignedPolicyPacket(row, set?.name || 'Policy Set', employeeName);
+      if (result === 'no-signatures') {
+        toast({
+          title: 'Nothing signed yet',
+          description: `${employeeName} has not signed any policy in this set.`,
+          status: 'warning',
+          duration: 4000,
+        });
+      } else if (result === 'popup-blocked') {
+        toast({ title: 'Popup blocked', description: 'Please allow popups to download the PDF', status: 'error', duration: 5000 });
+      }
+    } catch (error: any) {
+      toast({ title: 'Error generating document', description: error.message, status: 'error', duration: 5000 });
+    } finally {
+      setDownloadingId(null);
+    }
   };
 
   if (!isHRFinance) {
@@ -683,9 +709,20 @@ const PoliciesManagement: React.FC = () => {
                                       {row.signed_count} of {row.total_policies}
                                     </Td>
                                     <Td>
-                                      <Button size="xs" variant="outline" onClick={() => openView(row)}>
-                                        View
-                                      </Button>
+                                      <HStack spacing={2}>
+                                        <Button size="xs" variant="outline" onClick={() => openView(row)}>
+                                          View
+                                        </Button>
+                                        <Button
+                                          size="xs"
+                                          variant="outline"
+                                          isDisabled={row.signed_count === 0}
+                                          isLoading={downloadingId === row.id}
+                                          onClick={() => handleDownload(row)}
+                                        >
+                                          Download PDF
+                                        </Button>
+                                      </HStack>
                                     </Td>
                                   </Tr>
                                 );

@@ -37,6 +37,7 @@ import { Layout } from '../../components/Layout';
 import { useAuth } from '../../contexts/AuthContext';
 import { supabase } from '../../config/supabase';
 import TimesheetDetailModal from '../../components/TimesheetDetailModal';
+import MonthYearFilter from '../../components/MonthYearFilter';
 import ExpenseApprovalsTab from './ExpenseApprovalsTab';
 import { sendNotification, getUserInfo } from '../../utils/notifications';
 
@@ -99,7 +100,8 @@ const ManagerDashboard: React.FC = () => {
   const [reviewComments, setReviewComments] = useState('');
   const [loading, setLoading] = useState(false);
   const [timesheetFilterEmployee, setTimesheetFilterEmployee] = useState('');
-  const [timesheetFilterYear, setTimesheetFilterYear] = useState(String(new Date().getFullYear()));
+  const [timesheetFilterYear, setTimesheetFilterYear] = useState<number | ''>(new Date().getFullYear());
+  const [timesheetFilterMonth, setTimesheetFilterMonth] = useState<number | ''>('');
   const { isOpen, onOpen, onClose } = useDisclosure();
   const {
     isOpen: isTimesheetOpen,
@@ -304,12 +306,16 @@ const ManagerDashboard: React.FC = () => {
   const filteredTimesheets = timesheets
     .filter((t) => {
       if (timesheetFilterEmployee && t.employee_id !== timesheetFilterEmployee) return false;
-      if (timesheetFilterYear && String(t.year) !== timesheetFilterYear) return false;
+      if (timesheetFilterYear !== '' && t.year !== timesheetFilterYear) return false;
+      if (timesheetFilterMonth !== '' && t.month !== timesheetFilterMonth) return false;
       return true;
     })
     .sort((a, b) => b.year - a.year || b.month - a.month);
 
   const availableYears = [...new Set(timesheets.map((t) => t.year))].sort((a, b) => b - a);
+  if (!availableYears.includes(new Date().getFullYear())) {
+    availableYears.unshift(new Date().getFullYear());
+  }
 
   return (
     <Layout>
@@ -398,19 +404,15 @@ const ManagerDashboard: React.FC = () => {
                           </option>
                         ))}
                       </Select>
-                      <Select
-                        value={timesheetFilterYear}
-                        onChange={(e) => setTimesheetFilterYear(e.target.value)}
-                        maxW="120px"
-                        size="sm"
-                      >
-                        {availableYears.map((y) => (
-                          <option key={y} value={y}>{y}</option>
-                        ))}
-                        {!availableYears.includes(new Date().getFullYear()) && (
-                          <option value={String(new Date().getFullYear())}>{new Date().getFullYear()}</option>
-                        )}
-                      </Select>
+                      <MonthYearFilter
+                        month={timesheetFilterMonth}
+                        year={timesheetFilterYear}
+                        onMonthChange={setTimesheetFilterMonth}
+                        onYearChange={setTimesheetFilterYear}
+                        monthOffset={0}
+                        years={availableYears}
+                        allowAll
+                      />
                     </HStack>
                     {filteredTimesheets.length === 0 ? (
                       <Text color="gray.500">No timesheets found</Text>

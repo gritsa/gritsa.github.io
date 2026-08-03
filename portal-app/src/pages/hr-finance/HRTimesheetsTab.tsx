@@ -15,12 +15,12 @@ import {
   Badge,
   Button,
   HStack,
-  Select,
   useDisclosure,
 } from '@chakra-ui/react';
 import { ViewIcon } from '@chakra-ui/icons';
 import { supabase } from '../../config/supabase';
 import TimesheetDetailModal from '../../components/TimesheetDetailModal';
+import MonthYearFilter from '../../components/MonthYearFilter';
 
 interface HRTimesheetsTabProps {
   employeeId: string;
@@ -44,7 +44,8 @@ const MONTHS = [
 const HRTimesheetsTab: React.FC<HRTimesheetsTabProps> = ({ employeeId, employeeName }) => {
   const [timesheets, setTimesheets] = useState<Timesheet[]>([]);
   const [loading, setLoading] = useState(true);
-  const [filterYear, setFilterYear] = useState(String(new Date().getFullYear()));
+  const [filterYear, setFilterYear] = useState<number | ''>(new Date().getFullYear());
+  const [filterMonth, setFilterMonth] = useState<number | ''>('');
   const [selectedTimesheet, setSelectedTimesheet] = useState<Timesheet | null>(null);
   const { isOpen, onOpen, onClose } = useDisclosure();
   const toast = useToast();
@@ -85,9 +86,12 @@ const HRTimesheetsTab: React.FC<HRTimesheetsTabProps> = ({ employeeId, employeeN
   };
 
   const availableYears = [...new Set(timesheets.map((t) => t.year))].sort((a, b) => b - a);
+  if (!availableYears.includes(new Date().getFullYear())) {
+    availableYears.unshift(new Date().getFullYear());
+  }
 
   const filteredTimesheets = timesheets.filter(
-    (t) => !filterYear || String(t.year) === filterYear,
+    (t) => (filterYear === '' || t.year === filterYear) && (filterMonth === '' || t.month === filterMonth),
   );
 
   if (loading) {
@@ -108,30 +112,23 @@ const HRTimesheetsTab: React.FC<HRTimesheetsTabProps> = ({ employeeId, employeeN
             <Text fontWeight="semibold" color="white" fontSize="sm">
               Timesheets
             </Text>
-            <Select
-              value={filterYear}
-              onChange={(e) => setFilterYear(e.target.value)}
-              maxW="120px"
-              size="sm"
-              color="white"
-              variant="filled"
-            >
-              <option value="">All Years</option>
-              {availableYears.map((y) => (
-                <option key={y} value={y}>{y}</option>
-              ))}
-              {!availableYears.includes(new Date().getFullYear()) && (
-                <option value={String(new Date().getFullYear())}>{new Date().getFullYear()}</option>
-              )}
-            </Select>
+            <MonthYearFilter
+              month={filterMonth}
+              year={filterYear}
+              onMonthChange={setFilterMonth}
+              onYearChange={setFilterYear}
+              monthOffset={0}
+              years={availableYears}
+              allowAll
+            />
           </HStack>
 
           {filteredTimesheets.length === 0 ? (
             <VStack spacing={2} py={8}>
               <Text color="whiteAlpha.700" fontSize="lg">No timesheets found</Text>
               <Text color="whiteAlpha.500" fontSize="sm">
-                {filterYear
-                  ? `No timesheets for ${filterYear}`
+                {filterYear || filterMonth !== ''
+                  ? 'No timesheets match this filter'
                   : 'This employee has no timesheets yet'}
               </Text>
             </VStack>
