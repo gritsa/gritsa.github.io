@@ -154,6 +154,7 @@ const ExpenseApprovalsTab: React.FC<ExpenseApprovalsTabProps> = ({ reporteeIds, 
             type: 'expense_reviewed',
             to_email: emp.email,
             to_name: emp.name,
+            to_user_id: selected.employee_id,
             data: {
               title: selected.title,
               amount: selected.amount,

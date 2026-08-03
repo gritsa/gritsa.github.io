@@ -966,6 +966,7 @@ const MySpace: React.FC = () => {
                   {payslips.length === 0 ? (
                     <Text color="whiteAlpha.700">No payslips available yet</Text>
                   ) : (
+                    <Box overflowX="auto">
                     <Table size="sm">
                       <Thead>
                         <Tr>
@@ -1003,6 +1004,7 @@ const MySpace: React.FC = () => {
                         ))}
                       </Tbody>
                     </Table>
+                    </Box>
                   )}
                 </CardBody>
               </Card>
@@ -1068,6 +1070,7 @@ const MySpace: React.FC = () => {
                   <Card bg="rgba(255, 255, 255, 0.05)" borderColor="rgba(255, 255, 255, 0.1)">
                     <CardBody>
                       <Heading size="md" mb={4} color="white">My Uploaded Documents</Heading>
+                      <Box overflowX="auto">
                       <Table size="sm">
                         <Thead>
                           <Tr>
@@ -1095,6 +1098,7 @@ const MySpace: React.FC = () => {
                           ))}
                         </Tbody>
                       </Table>
+                      </Box>
                     </CardBody>
                   </Card>
                 )}
@@ -1120,6 +1124,7 @@ const MySpace: React.FC = () => {
                     {filteredDocuments.length === 0 ? (
                       <Text color="whiteAlpha.700">No documents available for selected year</Text>
                     ) : (
+                      <Box overflowX="auto">
                       <Table size="sm">
                         <Thead>
                           <Tr>
@@ -1149,6 +1154,7 @@ const MySpace: React.FC = () => {
                           ))}
                         </Tbody>
                       </Table>
+                      </Box>
                     )}
                   </CardBody>
                 </Card>

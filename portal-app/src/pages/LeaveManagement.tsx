@@ -320,6 +320,7 @@ const LeaveManagement: React.FC = () => {
             type: 'leave_submitted',
             to_email: mgr.email,
             to_name: mgr.name,
+            to_user_id: managerId,
             data: {
               employee_name: leaveRequest.employee_name,
               leave_type: leaveRequest.leave_type,
@@ -467,7 +468,7 @@ const totalHolidays = leaveBalanceSummary.totalHolidays;
         </Card>
       </VStack>
 
-      <Modal isOpen={isOpen} onClose={onClose} size="lg">
+      <Modal isOpen={isOpen} onClose={onClose} size={{ base: 'full', md: 'lg' }}>
         <ModalOverlay />
         <ModalContent>
           <ModalHeader>Apply for Leave</ModalHeader>

@@ -61,6 +61,7 @@ interface Employee {
 }
 
 interface AssignmentRow extends PolicyAssignment {
+  policy_sets?: { name: string } | null;
   total_policies: number;
   signed_count: number;
 }
@@ -95,12 +96,15 @@ const PoliciesManagement: React.FC = () => {
   const newSetModal = useDisclosure();
   const policyEditorModal = useDisclosure();
 
-  // ── Assign & Track tab state ───────────────────────────────────────────
+  // ── Assign tab state ────────────────────────────────────────────────────
   const [employees, setEmployees] = useState<Employee[]>([]);
   const [assignSetId, setAssignSetId] = useState('');
   const [selectedEmployeeIds, setSelectedEmployeeIds] = useState<string[]>([]);
   const [dueDate, setDueDate] = useState('');
   const [assigning, setAssigning] = useState(false);
+
+  // ── Track tab state ─────────────────────────────────────────────────────
+  const [trackSetId, setTrackSetId] = useState(''); // '' = all sets
   const [assignments, setAssignments] = useState<AssignmentRow[]>([]);
   const [loadingAssignments, setLoadingAssignments] = useState(false);
   const [viewAssignment, setViewAssignment] = useState<AssignmentRow | null>(null);
@@ -120,9 +124,10 @@ const PoliciesManagement: React.FC = () => {
   }, [selectedSet?.id]);
 
   useEffect(() => {
-    if (assignSetId) fetchAssignmentsForSet(assignSetId);
+    if (!isHRFinance) return;
+    fetchAssignments(trackSetId || undefined);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [assignSetId]);
+  }, [isHRFinance, trackSetId]);
 
   const fetchPolicySets = async () => {
     try {
@@ -175,29 +180,28 @@ const PoliciesManagement: React.FC = () => {
     }
   };
 
-  const fetchAssignmentsForSet = async (policySetId: string) => {
+  // Powers the Track tab. Omitting policySetId shows assignments across every set — the default,
+  // so Track works as a standalone "check on things" view without first picking a set the way
+  // Assign requires.
+  const fetchAssignments = async (policySetId?: string) => {
     setLoadingAssignments(true);
     try {
-      const { count: totalPoliciesCount } = await supabase
-        .from('policies')
-        .select('id', { count: 'exact', head: true })
-        .eq('policy_set_id', policySetId);
-      const totalPolicies = totalPoliciesCount || 0;
-
-      const { data: rows, error } = await supabase
+      let query = supabase
         .from('policy_assignments')
-        .select('*')
-        .eq('policy_set_id', policySetId)
+        .select('*, policy_sets(name)')
         .order('assigned_at', { ascending: false });
+      if (policySetId) query = query.eq('policy_set_id', policySetId);
+
+      const { data: rows, error } = await query;
       if (error) throw error;
 
       const withCounts = await Promise.all(
         (rows || []).map(async (row) => {
-          const { count: signedCount } = await supabase
-            .from('policy_signatures')
-            .select('id', { count: 'exact', head: true })
-            .eq('assignment_id', row.id);
-          return { ...row, total_policies: totalPolicies, signed_count: signedCount || 0 };
+          const [{ count: totalCount }, { count: signedCount }] = await Promise.all([
+            supabase.from('policies').select('id', { count: 'exact', head: true }).eq('policy_set_id', row.policy_set_id),
+            supabase.from('policy_signatures').select('id', { count: 'exact', head: true }).eq('assignment_id', row.id),
+          ]);
+          return { ...row, total_policies: totalCount || 0, signed_count: signedCount || 0 };
         })
       );
 
@@ -354,6 +358,7 @@ const PoliciesManagement: React.FC = () => {
           type: 'policy_set_assigned',
           to_email: employee.email,
           to_name: employee.display_name || employee.email,
+          to_user_id: employeeId,
           data: {
             policy_set_name: set?.name || 'Policy Set',
             due_date: dueDate ? formatDate(dueDate) : 'No due date',
@@ -362,7 +367,9 @@ const PoliciesManagement: React.FC = () => {
       });
 
       setSelectedEmployeeIds([]);
-      await fetchAssignmentsForSet(assignSetId);
+      // Track may already be mounted (Chakra Tabs keeps panels mounted by default) with stale
+      // data from before this assignment — refresh it too, respecting whatever filter it's on.
+      await fetchAssignments(trackSetId || undefined);
     } catch (error: any) {
       toast({ title: 'Error assigning policy set', description: error.message, status: 'error', duration: 5000 });
     } finally {
@@ -428,15 +435,25 @@ const PoliciesManagement: React.FC = () => {
               Policy Sets
             </Tab>
             <Tab color="whiteAlpha.700" _selected={{ color: 'white', bg: 'rgba(255, 255, 255, 0.1)' }}>
-              Assign &amp; Track
+              Assign
+            </Tab>
+            <Tab color="whiteAlpha.700" _selected={{ color: 'white', bg: 'rgba(255, 255, 255, 0.1)' }}>
+              Track
             </Tab>
           </TabList>
 
           <TabPanels>
             {/* ── Policy Sets ─────────────────────────────────────────── */}
             <TabPanel px={0}>
-              <HStack align="stretch" spacing={6}>
-                <Card bg="rgba(255, 255, 255, 0.05)" borderColor="rgba(255, 255, 255, 0.1)" w="300px" h="calc(100vh - 300px)" overflowY="auto">
+              <Stack direction={{ base: 'column', md: 'row' }} align="stretch" spacing={6}>
+                <Card
+                  bg="rgba(255, 255, 255, 0.05)"
+                  borderColor="rgba(255, 255, 255, 0.1)"
+                  w={{ base: '100%', md: '300px' }}
+                  h={{ base: 'auto', md: 'calc(100vh - 300px)' }}
+                  maxH={{ base: '320px', md: 'calc(100vh - 300px)' }}
+                  overflowY="auto"
+                >
                   <CardBody>
                     <HStack justify="space-between" mb={4}>
                       <Heading size="sm" color="white">
@@ -603,138 +620,156 @@ const PoliciesManagement: React.FC = () => {
                     </Card>
                   )}
                 </Box>
-              </HStack>
+              </Stack>
             </TabPanel>
 
-            {/* ── Assign & Track ──────────────────────────────────────── */}
+            {/* ── Assign ──────────────────────────────────────────────── */}
             <TabPanel px={0}>
-              <VStack align="stretch" spacing={6}>
-                <Card bg="rgba(255, 255, 255, 0.05)" borderColor="rgba(255, 255, 255, 0.1)">
-                  <CardBody>
-                    <Heading size="sm" color="white" mb={4}>
-                      Assign a Policy Set
-                    </Heading>
-                    <VStack align="stretch" spacing={4}>
-                      <FormControl isRequired>
-                        <FormLabel color="whiteAlpha.900">Policy Set</FormLabel>
-                        <Select
-                          placeholder="Select a policy set"
-                          variant="filled"
-                          color="white"
-                          value={assignSetId}
-                          onChange={(e) => setAssignSetId(e.target.value)}
-                        >
-                          {activeSets.map((set) => (
-                            <option key={set.id} value={set.id} style={{ color: 'black' }}>
-                              {set.name}
-                            </option>
-                          ))}
-                        </Select>
-                      </FormControl>
-
-                      <FormControl isRequired>
-                        <FormLabel color="whiteAlpha.900">Assign to Employees</FormLabel>
-                        <Box maxH="220px" overflowY="auto" border="1px" borderColor="whiteAlpha.300" borderRadius="md" p={3}>
-                          <CheckboxGroup value={selectedEmployeeIds} onChange={(values) => setSelectedEmployeeIds(values as string[])}>
-                            <Stack spacing={2}>
-                              {employees.map((employee) => (
-                                <Checkbox key={employee.id} value={employee.id} color="white">
-                                  {employee.display_name || employee.email} ({employee.role})
-                                </Checkbox>
-                              ))}
-                            </Stack>
-                          </CheckboxGroup>
-                        </Box>
-                      </FormControl>
-
-                      <FormControl maxW="220px">
-                        <FormLabel color="whiteAlpha.900">Due Date</FormLabel>
-                        <Input type="date" variant="filled" color="white" value={dueDate} onChange={(e) => setDueDate(e.target.value)} />
-                      </FormControl>
-
-                      <Button
-                        variant="gradient"
-                        alignSelf="start"
-                        isDisabled={!assignSetId || selectedEmployeeIds.length === 0}
-                        isLoading={assigning}
-                        onClick={handleAssign}
+              <Card bg="rgba(255, 255, 255, 0.05)" borderColor="rgba(255, 255, 255, 0.1)">
+                <CardBody>
+                  <Heading size="sm" color="white" mb={4}>
+                    Assign a Policy Set
+                  </Heading>
+                  <VStack align="stretch" spacing={4}>
+                    <FormControl isRequired>
+                      <FormLabel color="whiteAlpha.900">Policy Set</FormLabel>
+                      <Select
+                        placeholder="Select a policy set"
+                        variant="filled"
+                        color="white"
+                        value={assignSetId}
+                        onChange={(e) => setAssignSetId(e.target.value)}
                       >
-                        Assign to Selected
-                      </Button>
-                    </VStack>
-                  </CardBody>
-                </Card>
+                        {activeSets.map((set) => (
+                          <option key={set.id} value={set.id} style={{ color: 'black' }}>
+                            {set.name}
+                          </option>
+                        ))}
+                      </Select>
+                    </FormControl>
 
-                {assignSetId && (
-                  <Card bg="rgba(255, 255, 255, 0.05)" borderColor="rgba(255, 255, 255, 0.1)">
-                    <CardBody>
-                      <Heading size="sm" color="white" mb={4}>
-                        Assignment History
-                      </Heading>
-                      {loadingAssignments ? (
-                        <Text color="whiteAlpha.700">Loading…</Text>
-                      ) : assignments.length === 0 ? (
-                        <Text color="whiteAlpha.700" fontSize="sm">
-                          No one has been assigned this set yet.
-                        </Text>
-                      ) : (
-                        <Box overflowX="auto">
-                          <Table variant="simple" size="sm">
-                            <Thead>
-                              <Tr>
-                                <Th color="whiteAlpha.700">Employee</Th>
-                                <Th color="whiteAlpha.700">Assigned</Th>
-                                <Th color="whiteAlpha.700">Due</Th>
-                                <Th color="whiteAlpha.700">Status</Th>
-                                <Th color="whiteAlpha.700">Progress</Th>
-                                <Th color="whiteAlpha.700">Actions</Th>
+                    <FormControl isRequired>
+                      <FormLabel color="whiteAlpha.900">Assign to Employees</FormLabel>
+                      <Box maxH="220px" overflowY="auto" border="1px" borderColor="whiteAlpha.300" borderRadius="md" p={3}>
+                        <CheckboxGroup value={selectedEmployeeIds} onChange={(values) => setSelectedEmployeeIds(values as string[])}>
+                          <Stack spacing={2}>
+                            {employees.map((employee) => (
+                              <Checkbox key={employee.id} value={employee.id} color="white">
+                                {employee.display_name || employee.email} ({employee.role})
+                              </Checkbox>
+                            ))}
+                          </Stack>
+                        </CheckboxGroup>
+                      </Box>
+                    </FormControl>
+
+                    <FormControl maxW="220px">
+                      <FormLabel color="whiteAlpha.900">Due Date</FormLabel>
+                      <Input type="date" variant="filled" color="white" value={dueDate} onChange={(e) => setDueDate(e.target.value)} />
+                    </FormControl>
+
+                    <Button
+                      variant="gradient"
+                      alignSelf="start"
+                      isDisabled={!assignSetId || selectedEmployeeIds.length === 0}
+                      isLoading={assigning}
+                      onClick={handleAssign}
+                    >
+                      Assign to Selected
+                    </Button>
+                  </VStack>
+                </CardBody>
+              </Card>
+            </TabPanel>
+
+            {/* ── Track ───────────────────────────────────────────────── */}
+            <TabPanel px={0}>
+              <Card bg="rgba(255, 255, 255, 0.05)" borderColor="rgba(255, 255, 255, 0.1)">
+                <CardBody>
+                  <HStack justify="space-between" mb={4} flexWrap="wrap" gap={3}>
+                    <Heading size="sm" color="white">
+                      Assignment History
+                    </Heading>
+                    <Select
+                      placeholder="All Policy Sets"
+                      variant="filled"
+                      color="white"
+                      size="sm"
+                      maxW="240px"
+                      value={trackSetId}
+                      onChange={(e) => setTrackSetId(e.target.value)}
+                    >
+                      {policySets.map((set) => (
+                        <option key={set.id} value={set.id} style={{ color: 'black' }}>
+                          {set.name}
+                        </option>
+                      ))}
+                    </Select>
+                  </HStack>
+                  {loadingAssignments ? (
+                    <Text color="whiteAlpha.700">Loading…</Text>
+                  ) : assignments.length === 0 ? (
+                    <Text color="whiteAlpha.700" fontSize="sm">
+                      {trackSetId ? 'No one has been assigned this set yet.' : 'No policy assignments yet.'}
+                    </Text>
+                  ) : (
+                    <Box overflowX="auto">
+                      <Table variant="simple" size="sm">
+                        <Thead>
+                          <Tr>
+                            <Th color="whiteAlpha.700">Employee</Th>
+                            <Th color="whiteAlpha.700">Policy Set</Th>
+                            <Th color="whiteAlpha.700">Assigned</Th>
+                            <Th color="whiteAlpha.700">Due</Th>
+                            <Th color="whiteAlpha.700">Status</Th>
+                            <Th color="whiteAlpha.700">Progress</Th>
+                            <Th color="whiteAlpha.700">Actions</Th>
+                          </Tr>
+                        </Thead>
+                        <Tbody>
+                          {assignments.map((row) => {
+                            const employee = employeeById(row.employee_id);
+                            const overdue = isOverdue(row);
+                            return (
+                              <Tr key={row.id}>
+                                <Td color="white">{employee?.display_name || employee?.email || row.employee_id}</Td>
+                                <Td color="whiteAlpha.700">{row.policy_sets?.name || '—'}</Td>
+                                <Td color="whiteAlpha.700">{formatDate(row.assigned_at)}</Td>
+                                <Td color="whiteAlpha.700">{formatDate(row.due_date)}</Td>
+                                <Td>
+                                  <HStack>
+                                    {overdue && <Badge colorScheme="red">Overdue</Badge>}
+                                    <Badge colorScheme={row.status === 'Completed' ? 'green' : 'orange'}>{row.status}</Badge>
+                                  </HStack>
+                                </Td>
+                                <Td color="whiteAlpha.700">
+                                  {row.signed_count} of {row.total_policies}
+                                </Td>
+                                <Td>
+                                  <HStack spacing={2}>
+                                    <Button size="xs" variant="outline" onClick={() => openView(row)}>
+                                      View
+                                    </Button>
+                                    <Button
+                                      size="xs"
+                                      variant="outline"
+                                      isDisabled={row.signed_count === 0}
+                                      isLoading={downloadingId === row.id}
+                                      onClick={() => handleDownload(row)}
+                                    >
+                                      Download PDF
+                                    </Button>
+                                  </HStack>
+                                </Td>
                               </Tr>
-                            </Thead>
-                            <Tbody>
-                              {assignments.map((row) => {
-                                const employee = employeeById(row.employee_id);
-                                const overdue = isOverdue(row);
-                                return (
-                                  <Tr key={row.id}>
-                                    <Td color="white">{employee?.display_name || employee?.email || row.employee_id}</Td>
-                                    <Td color="whiteAlpha.700">{formatDate(row.assigned_at)}</Td>
-                                    <Td color="whiteAlpha.700">{formatDate(row.due_date)}</Td>
-                                    <Td>
-                                      <HStack>
-                                        {overdue && <Badge colorScheme="red">Overdue</Badge>}
-                                        <Badge colorScheme={row.status === 'Completed' ? 'green' : 'orange'}>{row.status}</Badge>
-                                      </HStack>
-                                    </Td>
-                                    <Td color="whiteAlpha.700">
-                                      {row.signed_count} of {row.total_policies}
-                                    </Td>
-                                    <Td>
-                                      <HStack spacing={2}>
-                                        <Button size="xs" variant="outline" onClick={() => openView(row)}>
-                                          View
-                                        </Button>
-                                        <Button
-                                          size="xs"
-                                          variant="outline"
-                                          isDisabled={row.signed_count === 0}
-                                          isLoading={downloadingId === row.id}
-                                          onClick={() => handleDownload(row)}
-                                        >
-                                          Download PDF
-                                        </Button>
-                                      </HStack>
-                                    </Td>
-                                  </Tr>
-                                );
-                              })}
-                            </Tbody>
-                          </Table>
-                        </Box>
-                      )}
-                    </CardBody>
-                  </Card>
-                )}
-              </VStack>
+                            );
+                          })}
+                        </Tbody>
+                      </Table>
+                    </Box>
+                  )}
+                </CardBody>
+              </Card>
             </TabPanel>
           </TabPanels>
         </Tabs>

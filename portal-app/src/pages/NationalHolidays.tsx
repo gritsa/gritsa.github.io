@@ -319,7 +319,7 @@ const NationalHolidays: React.FC = () => {
               Employees can avail a maximum of 10 national holidays in a 365-day period
             </Text>
           </Box>
-          <HStack spacing={3}>
+          <HStack spacing={3} flexWrap="wrap">
             <Select
               value={selectedYear}
               onChange={(e) => setSelectedYear(parseInt(e.target.value))}
@@ -371,6 +371,7 @@ const NationalHolidays: React.FC = () => {
                 )}
               </Box>
             ) : (
+              <Box overflowX="auto">
               <Table size="sm">
                 <Thead>
                   <Tr>
@@ -424,6 +425,7 @@ const NationalHolidays: React.FC = () => {
                   ))}
                 </Tbody>
               </Table>
+              </Box>
             )}
           </CardBody>
         </Card>

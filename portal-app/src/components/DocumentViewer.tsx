@@ -135,7 +135,7 @@ const DocumentViewer: React.FC<DocumentViewerProps> = ({ isOpen, onClose, filePa
   };
 
   return (
-    <Modal isOpen={isOpen} onClose={onClose} size="6xl">
+    <Modal isOpen={isOpen} onClose={onClose} size={{ base: 'full', md: '6xl' }}>
       <ModalOverlay />
       <ModalContent bg="#1a1a1a" borderColor="rgba(255, 255, 255, 0.1)" maxH="90vh">
         <ModalHeader color="white">

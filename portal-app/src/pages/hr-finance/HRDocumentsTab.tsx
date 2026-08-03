@@ -154,6 +154,7 @@ const HRDocumentsTab: React.FC<HRDocumentsTabProps> = ({ employeeId }) => {
             type: 'document_uploaded',
             to_email: emp.email,
             to_name: emp.name,
+            to_user_id: employeeId,
             data: {
               document_name: uploadForm.documentName,
               document_type: uploadForm.documentType,
@@ -262,7 +263,7 @@ const HRDocumentsTab: React.FC<HRDocumentsTabProps> = ({ employeeId }) => {
     <VStack spacing={6} align="stretch">
       <Card bg="rgba(255, 255, 255, 0.03)">
         <CardBody>
-          <HStack justify="space-between" mb={4}>
+          <HStack justify="space-between" mb={4} flexWrap="wrap" gap={2}>
             <Heading size="sm" color="white">
               HR Issued Documents
             </Heading>
@@ -334,7 +335,7 @@ const HRDocumentsTab: React.FC<HRDocumentsTabProps> = ({ employeeId }) => {
       </Card>
 
       {/* Upload Modal */}
-      <Modal isOpen={isOpen} onClose={onClose} size="lg">
+      <Modal isOpen={isOpen} onClose={onClose} size={{ base: 'full', md: 'lg' }}>
         <ModalOverlay />
         <ModalContent bg="#1a1a1a" borderColor="rgba(255, 255, 255, 0.1)">
           <ModalHeader color="white">Upload Document</ModalHeader>

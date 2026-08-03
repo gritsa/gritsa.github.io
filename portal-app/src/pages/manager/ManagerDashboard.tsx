@@ -247,6 +247,7 @@ const ManagerDashboard: React.FC = () => {
             type: 'leave_reviewed',
             to_email: emp.email,
             to_name: emp.name,
+            to_user_id: selectedLeave.employee_id,
             data: {
               leave_type: selectedLeave.leave_type,
               from_date: from.toLocaleDateString('en-IN'),
@@ -390,7 +391,7 @@ const ManagerDashboard: React.FC = () => {
                 <CardBody>
                   <VStack spacing={4} align="stretch">
                     <Heading size="md">Team Timesheets</Heading>
-                    <HStack spacing={4}>
+                    <HStack spacing={4} flexWrap="wrap">
                       <Select
                         placeholder="All Employees"
                         value={timesheetFilterEmployee}

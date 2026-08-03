@@ -3,11 +3,13 @@ import {
   Box,
   Heading,
   VStack,
+  HStack,
   Card,
   CardBody,
   SimpleGrid,
   Text,
   Button,
+  Switch,
   useToast,
   FormControl,
   FormLabel,
@@ -26,6 +28,13 @@ import { Layout } from '../components/Layout';
 import { useAuth } from '../contexts/AuthContext';
 import { supabase } from '../config/supabase';
 import { ExternalLinkIcon } from '@chakra-ui/icons';
+import {
+  getPushSupportStatus,
+  hasActivePushSubscription,
+  subscribeToPush,
+  unsubscribeFromPush,
+  type PushSupportStatus,
+} from '../utils/pushNotifications';
 
 interface EmployeeProfileData {
   user_id: string;
@@ -47,6 +56,45 @@ const EmployeeProfile: React.FC = () => {
   const [editLoading, setEditLoading] = useState(false);
   const { isOpen, onOpen, onClose } = useDisclosure();
   const toast = useToast();
+
+  const [pushStatus, setPushStatus] = useState<PushSupportStatus>('unsupported');
+  const [pushSubscribed, setPushSubscribed] = useState(false);
+  const [pushLoading, setPushLoading] = useState(false);
+
+  useEffect(() => {
+    setPushStatus(getPushSupportStatus());
+    hasActivePushSubscription().then(setPushSubscribed);
+  }, []);
+
+  const handleTogglePush = async () => {
+    if (!currentUser) return;
+    setPushLoading(true);
+    try {
+      if (pushSubscribed) {
+        await unsubscribeFromPush();
+        setPushSubscribed(false);
+        toast({ title: 'Push notifications disabled', status: 'info', duration: 3000 });
+      } else {
+        const ok = await subscribeToPush(currentUser.id);
+        setPushStatus(getPushSupportStatus());
+        if (ok) {
+          setPushSubscribed(true);
+          toast({ title: 'Push notifications enabled', status: 'success', duration: 3000 });
+        } else {
+          toast({
+            title: 'Could not enable push notifications',
+            description: 'Permission was not granted.',
+            status: 'warning',
+            duration: 4000,
+          });
+        }
+      }
+    } catch (error: any) {
+      toast({ title: 'Error updating push notifications', description: error.message, status: 'error', duration: 5000 });
+    } finally {
+      setPushLoading(false);
+    }
+  };
 
   const [formData, setFormData] = useState({
     fullName: '',
@@ -218,6 +266,34 @@ const EmployeeProfile: React.FC = () => {
 
         <Card>
           <CardBody>
+            <VStack spacing={4} align="stretch">
+              <Heading size="md">Push Notifications</Heading>
+              {pushStatus === 'unsupported' ? (
+                <Text color="gray.500" fontSize="sm">
+                  Push notifications aren't supported in this browser.
+                </Text>
+              ) : pushStatus === 'denied' ? (
+                <Text color="gray.500" fontSize="sm">
+                  Notifications are blocked for this site. Enable them in your browser's site
+                  settings to turn this on.
+                </Text>
+              ) : (
+                <HStack justify="space-between" flexWrap="wrap" gap={3}>
+                  <Box>
+                    <Text>Get instant updates for leave, expenses, and policies</Text>
+                    <Text fontSize="sm" color="gray.500">
+                      Works alongside email notifications, not instead of them.
+                    </Text>
+                  </Box>
+                  <Switch isChecked={pushSubscribed} onChange={handleTogglePush} isDisabled={pushLoading} />
+                </HStack>
+              )}
+            </VStack>
+          </CardBody>
+        </Card>
+
+        <Card>
+          <CardBody>
             <VStack spacing={6} align="stretch">
               <Heading size="md">Personal Details</Heading>
               <SimpleGrid columns={{ base: 1, md: 2 }} spacing={4}>
@@ -317,7 +393,7 @@ const EmployeeProfile: React.FC = () => {
         </Card>
       </VStack>
 
-      <Modal isOpen={isOpen} onClose={onClose} size="xl">
+      <Modal isOpen={isOpen} onClose={onClose} size={{ base: 'full', md: 'xl' }}>
         <ModalOverlay />
         <ModalContent>
           <ModalHeader>Edit Profile</ModalHeader>
@@ -327,7 +403,7 @@ const EmployeeProfile: React.FC = () => {
               <Heading size="sm" alignSelf="flex-start">
                 Personal Details
               </Heading>
-              <SimpleGrid columns={2} spacing={4} w="full">
+              <SimpleGrid columns={{ base: 1, md: 2 }} spacing={4} w="full">
                 <FormControl isRequired>
                   <FormLabel>Full Name</FormLabel>
                   <Input name="fullName" value={formData.fullName} onChange={handleInputChange} />
@@ -361,7 +437,7 @@ const EmployeeProfile: React.FC = () => {
               <Heading size="sm" alignSelf="flex-start" pt={4}>
                 Emergency Contact
               </Heading>
-              <SimpleGrid columns={2} spacing={4} w="full">
+              <SimpleGrid columns={{ base: 1, md: 2 }} spacing={4} w="full">
                 <FormControl isRequired>
                   <FormLabel>Name</FormLabel>
                   <Input
@@ -393,7 +469,7 @@ const EmployeeProfile: React.FC = () => {
               <Heading size="sm" alignSelf="flex-start" pt={4}>
                 Update Documents
               </Heading>
-              <SimpleGrid columns={2} spacing={4} w="full">
+              <SimpleGrid columns={{ base: 1, md: 2 }} spacing={4} w="full">
                 <FormControl>
                   <FormLabel>PAN Card</FormLabel>
                   <Input

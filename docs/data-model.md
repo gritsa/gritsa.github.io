@@ -1,7 +1,7 @@
 # Data Model
 
 Schema source of truth: `portal-app/supabase/migrations/*.sql`, applied in numeric order
-(001 → 013). There's no ORM — pages query Supabase directly via `supabase.from('table')...`.
+(001 → 018 as of this writing). There's no ORM — pages query Supabase directly via `supabase.from('table')...`.
 TypeScript shapes in `portal-app/src/types/index.ts` mirror these tables (kept in sync by hand,
 not generated — see [known-issues.md](known-issues.md)).
 
@@ -124,6 +124,18 @@ The completion trigger also means adding a policy to a set *after* some assignme
 This is exactly what the locked-once-assigned rule above prevents from happening in the first
 place; if you ever see a `Completed` assignment with fewer signatures than the set's current
 policy count, that's how it happened.
+
+## Push subscriptions (`018_push_subscriptions.sql`)
+
+- **`push_subscriptions`** — one row per `(user_id, endpoint)`, i.e. one row per browser/device a
+  user has enabled push notifications on. `subscription` is the raw `PushSubscription.toJSON()`
+  object (endpoint + encryption keys) the `send-push` Edge Function passes straight through to
+  the `web-push` library. RLS only grants users access to their own rows — the `send-push`
+  function reads via the service role key (same pattern as `document-proxy`/`send-notification`),
+  so no other role needs a policy here, and push endpoints (sensitive — anyone holding one can
+  push to that browser) stay scoped to their owner. See
+  [edge-functions.md](edge-functions.md) for the send-push function and
+  [architecture.md](architecture.md) for how this fits with the PWA/service worker.
 
 ## Storage
 

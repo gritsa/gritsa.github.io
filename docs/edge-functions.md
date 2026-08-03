@@ -1,6 +1,6 @@
 # Supabase Edge Functions
 
-Location: `portal-app/supabase/functions/`. Both are Deno functions deployed to Supabase (not
+Location: `portal-app/supabase/functions/`. All are Deno functions deployed to Supabase (not
 part of the Vite build — deployed separately via the Supabase CLI, e.g.
 `supabase functions deploy <name>`).
 
@@ -55,12 +55,43 @@ probably be revisited.
 Resend. If you find references to SMTP/denomailer elsewhere, they're stale — the current
 function only talks to Resend.
 
-## Deploying a change to either function
+## `send-push`
+
+**Purpose:** deliver web push notifications, self-hosted (no third-party push service) using the
+`web-push` npm package (imported via `esm.sh?target=deno`) and VAPID keys. Runs **alongside**
+`send-notification`, not instead of it — `sendNotification()` in `src/utils/notifications.ts`
+fires both channels independently (each in its own try/catch, so a failure in one never blocks
+the other).
+
+**Called from:** `src/utils/notifications.ts`'s `sendNotification()`, which builds a
+human-readable `{ title, body, url }` client-side via `buildPushContent()` (the email channel's
+template ignores this kind of content — see the `send-notification` note below — so this is the
+first place these notifications get real, readable text) and POSTs
+`{ user_id, title, body, url }`.
+
+**What it does:** loads every `push_subscriptions` row for `user_id` (service role key, bypasses
+RLS — see [data-model.md](data-model.md)), sends to each via `web-push`, and deletes any
+subscription that comes back 404/410 (the browser unsubscribed or cleared its data) so dead
+endpoints don't accumulate.
+
+**Required secrets:** `VAPID_PUBLIC_KEY`, `VAPID_PRIVATE_KEY`, `VAPID_SUBJECT` (a `mailto:`
+address). The public key is duplicated in frontend source
+(`src/utils/pushNotifications.ts`) — that's expected, VAPID public keys are meant to be exposed.
+
+**Frontend opt-in:** `EmployeeProfile.tsx` has a "Push Notifications" toggle calling
+`subscribeToPush`/`unsubscribeFromPush` from `src/utils/pushNotifications.ts`. This is
+deliberately a manual, user-initiated control (a button/switch), not an automatic permission
+prompt on login — browsers expect a user gesture before asking for notification permission, and
+prompting on every login would be poor UX regardless. Requires the PWA's service worker
+(`src/sw.js`) to be registered first — see [architecture.md](architecture.md).
+
+## Deploying a change to any function
 
 ```bash
 cd portal-app
 supabase functions deploy document-proxy
 supabase functions deploy send-notification
+supabase functions deploy send-push
 ```
 
 There's no CI step for this — Edge Function deploys are manual. Migrations are also applied

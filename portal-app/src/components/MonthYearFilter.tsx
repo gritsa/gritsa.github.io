@@ -37,7 +37,7 @@ const MonthYearFilter: React.FC<MonthYearFilterProps> = ({
   const yearOptions = years || defaultYears();
 
   return (
-    <HStack>
+    <HStack flexWrap="wrap">
       <Select
         size={size}
         value={month}

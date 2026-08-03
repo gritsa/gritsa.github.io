@@ -9,6 +9,7 @@ import {
   ModalFooter,
   Box,
   HStack,
+  Stack,
   VStack,
   Text,
   Badge,
@@ -211,6 +212,7 @@ const PolicySigningModal: React.FC<PolicySigningModalProps> = ({
             type: 'policy_set_completed',
             to_email: assigner.email,
             to_name: assigner.name,
+            to_user_id: assignment.assigned_by,
             data: {
               employee_name: currentUser.email || 'An employee',
               policy_set_name: policySetName,
@@ -232,9 +234,9 @@ const PolicySigningModal: React.FC<PolicySigningModalProps> = ({
   };
 
   return (
-    <Modal isOpen={isOpen} onClose={onClose} size="6xl">
+    <Modal isOpen={isOpen} onClose={onClose} size={{ base: 'full', md: '6xl' }}>
       <ModalOverlay />
-      <ModalContent bg="#1a1a1a" borderColor="whiteAlpha.200" maxH="90vh">
+      <ModalContent bg="#1a1a1a" borderColor="whiteAlpha.200" maxH={{ base: '100vh', md: '90vh' }}>
         <ModalHeader color="white">
           <HStack justify="space-between" align="start" flexWrap="wrap">
             <Box>
@@ -255,16 +257,19 @@ const PolicySigningModal: React.FC<PolicySigningModalProps> = ({
         </ModalHeader>
         <ModalCloseButton color="white" />
         <ModalBody>
-          <HStack align="stretch" spacing={4} h="60vh">
+          <Stack direction={{ base: 'column', md: 'row' }} align="stretch" spacing={4} h={{ base: 'auto', md: '60vh' }}>
             <VStack
-              w="240px"
+              w={{ base: '100%', md: '240px' }}
               flexShrink={0}
               align="stretch"
               spacing={1}
               overflowY="auto"
-              borderRight="1px solid"
+              maxH={{ base: '160px', md: 'auto' }}
+              borderRight={{ base: 'none', md: '1px solid' }}
+              borderBottom={{ base: '1px solid', md: 'none' }}
               borderColor="whiteAlpha.200"
-              pr={3}
+              pr={{ base: 0, md: 3 }}
+              pb={{ base: 3, md: 0 }}
             >
               {policies.map((policy) => {
                 const signed = !!signatureFor(policy.id);
@@ -381,7 +386,7 @@ const PolicySigningModal: React.FC<PolicySigningModalProps> = ({
                 <Text color="whiteAlpha.700">This policy set has no policies yet.</Text>
               )}
             </VStack>
-          </HStack>
+          </Stack>
         </ModalBody>
         <ModalFooter>
           <Button variant="ghost" color="white" onClick={onClose}>

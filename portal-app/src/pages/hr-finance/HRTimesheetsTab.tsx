@@ -108,7 +108,7 @@ const HRTimesheetsTab: React.FC<HRTimesheetsTabProps> = ({ employeeId, employeeN
     <VStack spacing={4} align="stretch">
       <Card bg="rgba(255, 255, 255, 0.03)">
         <CardBody>
-          <HStack justify="space-between" mb={4}>
+          <HStack justify="space-between" mb={4} flexWrap="wrap" gap={3}>
             <Text fontWeight="semibold" color="white" fontSize="sm">
               Timesheets
             </Text>

@@ -31,7 +31,7 @@ const PolicyEditorModal: React.FC<PolicyEditorModalProps> = ({ isOpen, onClose, 
   const [content, setContent] = useState(policy?.content || '');
 
   return (
-    <Modal isOpen={isOpen} onClose={onClose} size="4xl">
+    <Modal isOpen={isOpen} onClose={onClose} size={{ base: 'full', md: '4xl' }}>
       <ModalOverlay />
       <ModalContent bg="#1a1a1a" borderColor="whiteAlpha.200">
         <ModalHeader color="white">{policy ? 'Edit Policy' : 'New Policy'}</ModalHeader>
