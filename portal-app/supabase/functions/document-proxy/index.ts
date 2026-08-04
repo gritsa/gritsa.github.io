@@ -94,9 +94,12 @@ serve(async (req) => {
       })
     }
 
-    // Extract user ID from path (format: userId/filename)
+    // Extract owner ID from path. Most paths are userId/filename, but some are
+    // categoryPrefix/userId/filename (e.g. hr-documents/<id>/..., expense-receipts/<id>/...),
+    // so find the first UUID-shaped segment rather than assuming it's always first.
     const pathParts = path.split('/')
-    const fileOwnerId = pathParts[0]
+    const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
+    const fileOwnerId = pathParts.find((part) => UUID_RE.test(part)) ?? pathParts[0]
 
     // Get user's role
     const { data: userData, error: roleError } = await supabaseAdmin
