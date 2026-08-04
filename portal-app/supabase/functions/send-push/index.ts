@@ -1,6 +1,6 @@
 import { serve } from 'https://deno.land/std@0.168.0/http/server.ts'
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.39.3'
-import webpush from 'https://esm.sh/web-push@3.6.7?target=deno'
+import { buildPushPayload } from 'https://esm.sh/@block65/webcrypto-web-push@1.0.2?target=deno'
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -11,10 +11,6 @@ const corsHeaders = {
 const vapidPublicKey = Deno.env.get('VAPID_PUBLIC_KEY') ?? ''
 const vapidPrivateKey = Deno.env.get('VAPID_PRIVATE_KEY') ?? ''
 const vapidSubject = Deno.env.get('VAPID_SUBJECT') ?? 'mailto:admin@gritsa.com'
-
-if (vapidPublicKey && vapidPrivateKey) {
-  webpush.setVapidDetails(vapidSubject, vapidPublicKey, vapidPrivateKey)
-}
 
 interface PushPayload {
   user_id: string
@@ -64,25 +60,39 @@ serve(async (req) => {
       url: payload.url || '/',
     })
 
+    const vapid = { subject: vapidSubject, publicKey: vapidPublicKey, privateKey: vapidPrivateKey }
+
     const results = await Promise.allSettled(
       (subs || []).map(async (sub) => {
         try {
-          await webpush.sendNotification(sub.subscription, notificationPayload)
-        } catch (err) {
-          const statusCode = err?.statusCode
-          if (statusCode === 404 || statusCode === 410) {
-            // Subscription is gone (unsubscribed, browser data cleared, etc). Clean it up so we
-            // stop trying to deliver to a dead endpoint.
-            await supabaseAdmin.from('push_subscriptions').delete().eq('id', sub.id)
+          const request = await buildPushPayload(
+            { data: notificationPayload, options: { ttl: 60 } },
+            sub.subscription,
+            vapid
+          )
+          const res = await fetch(sub.subscription.endpoint, request)
+          if (!res.ok) {
+            if (res.status === 404 || res.status === 410) {
+              // Subscription is gone (unsubscribed, browser data cleared, etc). Clean it up so
+              // we stop trying to deliver to a dead endpoint.
+              await supabaseAdmin.from('push_subscriptions').delete().eq('id', sub.id)
+            }
+            const body = await res.text()
+            throw { statusCode: res.status, body }
           }
-          throw err
+        } catch (err) {
+          console.error('send-push delivery failed:', err?.statusCode, err?.body ?? err?.message ?? err)
+          throw { statusCode: err?.statusCode, body: err?.body, message: err?.message }
         }
       })
     )
 
     const sent = results.filter((r) => r.status === 'fulfilled').length
+    const errors = results
+      .filter((r) => r.status === 'rejected')
+      .map((r) => (r as PromiseRejectedResult).reason)
 
-    return new Response(JSON.stringify({ success: true, sent, total: (subs || []).length }), {
+    return new Response(JSON.stringify({ success: true, sent, total: (subs || []).length, errors }), {
       status: 200,
       headers: { ...corsHeaders, 'Content-Type': 'application/json' },
     })

@@ -57,11 +57,24 @@ function only talks to Resend.
 
 ## `send-push`
 
-**Purpose:** deliver web push notifications, self-hosted (no third-party push service) using the
-`web-push` npm package (imported via `esm.sh?target=deno`) and VAPID keys. Runs **alongside**
-`send-notification`, not instead of it — `sendNotification()` in `src/utils/notifications.ts`
-fires both channels independently (each in its own try/catch, so a failure in one never blocks
-the other).
+**Purpose:** deliver web push notifications, self-hosted (no third-party push service) using
+`@block65/webcrypto-web-push` (imported via `esm.sh?target=deno`) and VAPID keys. Runs
+**alongside** `send-notification`, not instead of it — `sendNotification()` in
+`src/utils/notifications.ts` fires both channels independently (each in its own try/catch, so a
+failure in one never blocks the other).
+
+**Library note:** the obvious choice, the `web-push` npm package, does not work here — it calls
+Node's legacy `crypto.createECDH`, which Deno's runtime doesn't implement, so every send throws
+`Not implemented: crypto.ECDH`. Worse, the original version of this function swallowed that error
+per-subscription and still returned `{ success: true, sent: 0 }`, so it deployed and looked fine
+while silently failing 100% of the time. `@block65/webcrypto-web-push` avoids the problem
+entirely — it's built on the standard Web Crypto API (`crypto.subtle`), which Deno supports
+natively, and its `buildPushPayload()` returns a plain `{method, headers, body}` you `fetch()`
+yourself rather than doing the delivery for you. If you ever touch this function again: don't
+add back a Node-crypto-based push library, and don't let per-subscription errors get swallowed
+into a blanket `success: true` — the response includes an `errors` array precisely so a future
+regression like this one is visible from the HTTP response instead of requiring a manual
+diagnostic curl.
 
 **Called from:** `src/utils/notifications.ts`'s `sendNotification()`, which builds a
 human-readable `{ title, body, url }` client-side via `buildPushContent()` (the email channel's
