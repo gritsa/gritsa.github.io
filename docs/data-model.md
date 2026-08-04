@@ -139,14 +139,20 @@ policy count, that's how it happened.
 
 ## Storage
 
-Single bucket: **`documents`** (created in `002_storage_policies.sql`). Path convention is
+Single bucket: **`documents`** (created in `002_storage_policies.sql`). Most paths are
 `{user_id}/...` so RLS storage policies can check `auth.uid()` against the path prefix — this is
 also why the Policies module's signature paths above are read/writable by their owner and by
-HR-Finance/Administrator with zero new storage policies (see `013_fix_storage_rls.sql`'s
-role-wide policies). Holds PAN/Aadhaar uploads, HR/personal documents, expense receipts, and
+HR-Finance/Administrator with zero new storage policies. Two categories break that convention by
+prefixing a folder *before* the user id — `hr-documents/{employeeId}/...` and
+`expense-receipts/{userId}/...` — which needed their own RLS policies checking
+`(storage.foldername(name))[2]` instead of `[1]` (see `013_fix_storage_rls.sql`). The
+`document-proxy` Edge Function (below) has to do the equivalent adjustment on its own
+owner-inference logic; it was missed when those two categories were added, which is why HR-issued
+documents were unreadable by the employee they belonged to until fixed — see
+[edge-functions.md](edge-functions.md)'s `document-proxy` section, point 4, before adding a new
+upload path shape. Holds PAN/Aadhaar uploads, HR/personal documents, expense receipts, and
 signature images. Reads for anything other than the file's own owner go through the
-`document-proxy` Edge Function rather than a signed URL directly from the client — see
-[edge-functions.md](edge-functions.md).
+`document-proxy` Edge Function rather than a signed URL directly from the client.
 
 ## RLS pattern used throughout
 

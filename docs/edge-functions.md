@@ -25,13 +25,26 @@ loaded as a resource, not fetched via `fetch()` with an Authorization header.
    — this is why it must run server-side; the service role key is never sent to the client.
 3. Looks up the requesting user's `role` from `public.users`.
 4. Permission check: allow if the requester owns the document, OR is `HR-Finance`, OR is
-   `Administrator`. (Ownership is inferred from the storage path prefix matching `auth.uid()`.)
+   `Administrator`. Ownership is inferred by scanning the storage path for a UUID-shaped segment
+   and comparing it to `auth.uid()` — **not** just `path.split('/')[0]`, because not every upload
+   path puts the owner's id first. Most paths are `<userId>/filename` (MySpace personal docs,
+   policy signatures), but HR-issued documents and expense receipts are
+   `<categoryPrefix>/<userId>/filename` (e.g. `hr-documents/<id>/...`,
+   `expense-receipts/<id>/...`) — taking the first segment there gets the literal string
+   `"hr-documents"`, not the employee's id, which silently broke the employee's own ownership
+   check (they could still view HR-uploaded documents only because they're also HR-Finance/Admin,
+   or not at all otherwise — this is exactly the bug fixed by scanning for a UUID instead of
+   trusting position 0). If a future upload path introduces a *second* UUID-shaped segment (e.g.
+   nesting one entity's id inside another's folder), this heuristic would grab whichever comes
+   first — keep owner ids to a single segment per path.
 5. Downloads the file from the `documents` bucket via the admin client and streams it back with
    a MIME type derived from the file extension.
 
 **If you're debugging a "file not found" or "forbidden" error:** the function logs each step
 (`console.log`) — check the Edge Function logs in the Supabase dashboard first. Most failures are
 either an expired token or the permission check in step 4 not matching the caller's actual role.
+If a specific role can view a document but the file's owner can't, suspect the upload path shape
+first — see point 4 above.
 
 ## `send-notification`
 
