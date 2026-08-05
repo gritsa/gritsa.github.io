@@ -6,6 +6,15 @@ import { precacheAndRoute } from 'workbox-precaching';
 // never serve stale employee data.
 precacheAndRoute(self.__WB_MANIFEST);
 
+// Without these, a new service worker (and its refreshed precache of index.html/assets) sits in
+// "waiting" until every tab/window is fully closed — which may never happen for an installed
+// home-screen PWA that's just backgrounded, not closed. That would pin users to a stale app
+// shell indefinitely across deploys. Activate every new version immediately instead.
+self.skipWaiting();
+self.addEventListener('activate', (event) => {
+  event.waitUntil(self.clients.claim());
+});
+
 self.addEventListener('push', (event) => {
   let payload = {};
   try {
