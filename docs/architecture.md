@@ -98,6 +98,13 @@ routes**, so every Supabase API call still goes straight to the network, uncache
 deliberate: it means the service worker can never serve stale employee data, at the cost of the
 app shell (not the data) being available offline.
 
+`sw.js` calls `self.skipWaiting()` at install and `self.clients.claim()` at activate, so a new
+deploy's service worker takes over immediately instead of sitting in "waiting" until every tab is
+fully closed — which may never happen for an installed home-screen PWA that's just backgrounded,
+not closed. Without this, a stale precached `index.html`/JS bundle can keep being served
+indefinitely across deploys. See [deployment.md](deployment.md) for a separate, CDN-level cache
+issue (Cloudflare caching `sw.js` itself) that can still delay this by hours.
+
 Push notifications (`src/utils/pushNotifications.ts`, the `send-push` Edge Function — see
 [edge-functions.md](edge-functions.md)) are built on top of this service worker's `push` and
 `notificationclick` listeners, and run **alongside** the existing email notifications
