@@ -18,6 +18,7 @@ import {
   Heading,
 } from '@chakra-ui/react';
 import { supabase } from '../../config/supabase';
+import MonthYearFilter from '../../components/MonthYearFilter';
 
 interface HRExpensesTabProps {
   employeeId: string;
@@ -54,7 +55,8 @@ const HRExpensesTab: React.FC<HRExpensesTabProps> = ({ employeeId }) => {
   const [expenses, setExpenses] = useState<Expense[]>([]);
   const [loading, setLoading] = useState(true);
   const [filterStatus, setFilterStatus] = useState('');
-  const [filterYear, setFilterYear] = useState(String(new Date().getFullYear()));
+  const [filterYear, setFilterYear] = useState<number | ''>(new Date().getFullYear());
+  const [filterMonth, setFilterMonth] = useState<number | ''>('');
   const toast = useToast();
 
   useEffect(() => {
@@ -94,10 +96,15 @@ const HRExpensesTab: React.FC<HRExpensesTabProps> = ({ employeeId }) => {
   const availableYears = [...new Set(
     expenses.map((e) => new Date(e.expense_date).getFullYear()),
   )].sort((a, b) => b - a);
+  if (!availableYears.includes(new Date().getFullYear())) {
+    availableYears.unshift(new Date().getFullYear());
+  }
 
   const filtered = expenses.filter((e) => {
     if (filterStatus && e.status !== filterStatus) return false;
-    if (filterYear && String(new Date(e.expense_date).getFullYear()) !== filterYear) return false;
+    const expenseDate = new Date(e.expense_date);
+    if (filterYear !== '' && expenseDate.getFullYear() !== filterYear) return false;
+    if (filterMonth !== '' && expenseDate.getMonth() + 1 !== filterMonth) return false;
     return true;
   });
 
@@ -135,19 +142,15 @@ const HRExpensesTab: React.FC<HRExpensesTabProps> = ({ employeeId }) => {
                 <option value="Approved">Approved</option>
                 <option value="Rejected">Rejected</option>
               </Select>
-              <Select
-                value={filterYear}
-                onChange={(e) => setFilterYear(e.target.value)}
-                size="sm"
-                maxW="110px"
-                color="white"
-                variant="filled"
-              >
-                <option value="">All Years</option>
-                {availableYears.map((y) => (
-                  <option key={y} value={y}>{y}</option>
-                ))}
-              </Select>
+              <MonthYearFilter
+                month={filterMonth}
+                year={filterYear}
+                onMonthChange={setFilterMonth}
+                onYearChange={setFilterYear}
+                monthOffset={1}
+                years={availableYears}
+                allowAll
+              />
             </HStack>
           </HStack>
 
@@ -163,7 +166,7 @@ const HRExpensesTab: React.FC<HRExpensesTabProps> = ({ employeeId }) => {
             <VStack py={8} spacing={2}>
               <Text color="whiteAlpha.700" fontSize="lg">No expenses found</Text>
               <Text color="whiteAlpha.500" fontSize="sm">
-                {filterStatus || filterYear
+                {filterStatus || filterYear !== '' || filterMonth !== ''
                   ? 'Try adjusting your filters'
                   : 'This employee has not submitted any expenses yet'}
               </Text>

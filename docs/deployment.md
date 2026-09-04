@@ -49,6 +49,24 @@ for you to run manually — it does not commit or push itself.
 If you run this, you don't need to also let CI redo the build; either path produces the same
 committed output.
 
+## `portal.gritsa.com` sits behind Cloudflare — PWA updates can lag hours behind a deploy
+
+The custom domain is proxied through Cloudflare (not just GitHub Pages' own CDN) — confirmed via
+`cf-cache-status`/`cf-nel` response headers. Cloudflare edge-caches `sw.js` (and `registerSW.js`)
+for `max-age=14400` (4 hours). This matters specifically for the PWA service worker: a browser's
+update check fetches `/sw.js` to byte-compare against the currently installed version, and for up
+to 4 hours after a deploy that fetch can be served Cloudflare's **stale** cached copy — so an
+already-installed PWA won't even detect that a new service worker exists, let alone install it.
+`index.html` and `manifest.webmanifest` showed `cf-cache-status: DYNAMIC` (not cached this way)
+when last checked, so this is specifically a `sw.js`/`registerSW.js` problem, not a general one.
+
+If you need a service worker change to reach installed users immediately rather than within the
+next few hours, purge Cloudflare's cache for `sw.js` (and `registerSW.js`) after deploying — via
+the Cloudflare dashboard's "Purge Cache" (custom URL) for the zone, or by setting up a Cache Rule
+that bypasses cache for those two paths so this stops being a manual step. Neither of those is
+something this repo or its CI can do — it requires Cloudflare dashboard access, which lives
+outside this codebase.
+
 ## Supabase side (not part of this CI)
 
 Schema migrations and Edge Function deploys are **not** automated — see

@@ -252,7 +252,7 @@ const ProjectManagement: React.FC = () => {
         </Box>
       </VStack>
 
-      <Modal isOpen={isOpen} onClose={onClose} size="xl">
+      <Modal isOpen={isOpen} onClose={onClose} size={{ base: 'full', md: 'xl' }}>
         <ModalOverlay />
         <ModalContent>
           <ModalHeader>{selectedProject ? 'Edit Project' : 'Create Project'}</ModalHeader>

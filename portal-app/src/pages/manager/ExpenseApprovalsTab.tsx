@@ -29,6 +29,7 @@ import {
 import { supabase } from '../../config/supabase';
 import { useAuth } from '../../contexts/AuthContext';
 import { sendNotification, getUserInfo } from '../../utils/notifications';
+import MonthYearFilter from '../../components/MonthYearFilter';
 
 interface Expense {
   id: string;
@@ -66,6 +67,8 @@ const ExpenseApprovalsTab: React.FC<ExpenseApprovalsTabProps> = ({ reporteeIds, 
   const [comments, setComments] = useState('');
   const [submitting, setSubmitting] = useState(false);
   const [filterStatus, setFilterStatus] = useState('Pending');
+  const [filterMonth, setFilterMonth] = useState<number | ''>('');
+  const [filterYear, setFilterYear] = useState<number | ''>('');
   const { isOpen, onOpen, onClose } = useDisclosure();
   const toast = useToast();
 
@@ -151,6 +154,7 @@ const ExpenseApprovalsTab: React.FC<ExpenseApprovalsTabProps> = ({ reporteeIds, 
             type: 'expense_reviewed',
             to_email: emp.email,
             to_name: emp.name,
+            to_user_id: selected.employee_id,
             data: {
               title: selected.title,
               amount: selected.amount,
@@ -184,9 +188,18 @@ const ExpenseApprovalsTab: React.FC<ExpenseApprovalsTabProps> = ({ reporteeIds, 
   const formatDate = (dateStr: string) =>
     new Date(dateStr).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' });
 
-  const filtered = filterStatus
-    ? expenses.filter((e) => e.status === filterStatus)
-    : expenses;
+  const filtered = expenses.filter((e) => {
+    if (filterStatus && e.status !== filterStatus) return false;
+    const expenseDate = new Date(e.expense_date);
+    if (filterYear !== '' && expenseDate.getFullYear() !== filterYear) return false;
+    if (filterMonth !== '' && expenseDate.getMonth() + 1 !== filterMonth) return false;
+    return true;
+  });
+
+  const availableYears = [...new Set(expenses.map((e) => new Date(e.expense_date).getFullYear()))].sort((a, b) => b - a);
+  if (!availableYears.includes(new Date().getFullYear())) {
+    availableYears.unshift(new Date().getFullYear());
+  }
 
   const pendingCount = expenses.filter((e) => e.status === 'Pending').length;
 
@@ -200,28 +213,39 @@ const ExpenseApprovalsTab: React.FC<ExpenseApprovalsTabProps> = ({ reporteeIds, 
 
   return (
     <VStack spacing={4} align="stretch">
-      <HStack justify="space-between">
+      <HStack justify="space-between" flexWrap="wrap" gap={3}>
         <Text fontWeight="medium">
           {pendingCount > 0 && (
             <Badge colorScheme="yellow" mr={2}>{pendingCount} pending</Badge>
           )}
           Team Expenses
         </Text>
-        <Select
-          value={filterStatus}
-          onChange={(e) => setFilterStatus(e.target.value)}
-          maxW="150px"
-          size="sm"
-        >
-          <option value="">All</option>
-          <option value="Pending">Pending</option>
-          <option value="Approved">Approved</option>
-          <option value="Rejected">Rejected</option>
-        </Select>
+        <HStack spacing={3}>
+          <MonthYearFilter
+            month={filterMonth}
+            year={filterYear}
+            onMonthChange={setFilterMonth}
+            onYearChange={setFilterYear}
+            monthOffset={1}
+            years={availableYears}
+            allowAll
+          />
+          <Select
+            value={filterStatus}
+            onChange={(e) => setFilterStatus(e.target.value)}
+            maxW="150px"
+            size="sm"
+          >
+            <option value="">All</option>
+            <option value="Pending">Pending</option>
+            <option value="Approved">Approved</option>
+            <option value="Rejected">Rejected</option>
+          </Select>
+        </HStack>
       </HStack>
 
       {filtered.length === 0 ? (
-        <Text color="gray.500">No {filterStatus.toLowerCase() || ''} expenses</Text>
+        <Text color="gray.500">No matching expenses</Text>
       ) : (
         <Box overflowX="auto">
           <Table>

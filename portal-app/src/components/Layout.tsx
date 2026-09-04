@@ -48,10 +48,12 @@ export const Layout: React.FC<LayoutProps> = ({ children }) => {
       { label: 'Expenses', path: '/expenses' },
       { label: 'Leaves', path: '/leaves' },
       { label: 'Holidays', path: '/holidays' },
+      { label: 'Policies', path: '/policies' },
     ];
 
     if (userData?.role === 'HR-Finance' || userData?.role === 'Administrator') {
       items.push({ label: 'HR & Finance', path: '/hr-finance' });
+      items.push({ label: 'Manage Policies', path: '/policies/manage' });
     }
 
     if (userData?.role === 'Manager' || userData?.role === 'Administrator') {
@@ -79,6 +81,7 @@ export const Layout: React.FC<LayoutProps> = ({ children }) => {
         borderBottom="1px solid"
         borderColor="rgba(255, 255, 255, 0.1)"
         px={{ base: 4, md: 8 }}
+        pt="env(safe-area-inset-top)"
       >
         <Flex h={20} alignItems="center" justifyContent="space-between" maxW="100%" mx="auto">
           {/* Logo */}
@@ -174,8 +177,12 @@ export const Layout: React.FC<LayoutProps> = ({ children }) => {
       <Drawer isOpen={isOpen} placement="right" onClose={onClose}>
         <DrawerOverlay />
         <DrawerContent bg="#0a0a0a" borderLeft="1px solid" borderColor="rgba(255, 255, 255, 0.1)">
-          <DrawerCloseButton color="whiteAlpha.900" />
-          <DrawerHeader borderBottomWidth="1px" borderColor="rgba(255, 255, 255, 0.1)">
+          <DrawerCloseButton color="whiteAlpha.900" top="calc(12px + env(safe-area-inset-top))" />
+          <DrawerHeader
+            borderBottomWidth="1px"
+            borderColor="rgba(255, 255, 255, 0.1)"
+            pt="calc(var(--chakra-space-6) + env(safe-area-inset-top))"
+          >
             <VStack align="start" spacing={2}>
               <HStack spacing={3}>
                 <Avatar size="sm" name={userData?.displayName || userData?.email} />
@@ -191,7 +198,7 @@ export const Layout: React.FC<LayoutProps> = ({ children }) => {
             </VStack>
           </DrawerHeader>
 
-          <DrawerBody pt={6}>
+          <DrawerBody pt={6} pb="calc(var(--chakra-space-6) + env(safe-area-inset-bottom))">
             <VStack spacing={2} align="stretch">
               {getNavigationItems().map((item) => (
                 <Button
@@ -251,7 +258,12 @@ export const Layout: React.FC<LayoutProps> = ({ children }) => {
       </Drawer>
 
       {/* Main Content - Full Width */}
-      <Box px={{ base: 4, md: 8 }} py={{ base: 6, md: 8 }} w="100%">
+      <Box
+        px={{ base: 4, md: 8 }}
+        py={{ base: 6, md: 8 }}
+        pb="calc(var(--chakra-space-6) + env(safe-area-inset-bottom))"
+        w="100%"
+      >
         {children}
       </Box>
     </Box>

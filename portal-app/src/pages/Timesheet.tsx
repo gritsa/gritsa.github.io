@@ -527,7 +527,7 @@ const Timesheet: React.FC = () => {
         <Card bg="rgba(255, 255, 255, 0.05)" borderColor="rgba(255, 255, 255, 0.1)">
           <CardBody>
             <VStack spacing={6} align="stretch">
-              <HStack spacing={4}>
+              <HStack spacing={4} flexWrap="wrap">
                 <Select
                   variant="filled"
                   value={month}

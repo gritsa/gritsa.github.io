@@ -158,6 +158,7 @@ const OffboardingTab: React.FC<OffboardingTabProps> = ({ employeeId, employeeNam
         type: 'offboarding_started',
         to_email: employeeEmail,
         to_name: employeeName,
+        to_user_id: employeeId,
         data: {
           employee_name: employeeName,
           last_working_date: formatDate(lastWorkingDate),
@@ -280,6 +281,7 @@ const OffboardingTab: React.FC<OffboardingTabProps> = ({ employeeId, employeeNam
           type: 'exit_documents_ready',
           to_email: personalEmail,
           to_name: employeeName,
+          to_user_id: employeeId,
           data: {
             employee_name: employeeName,
           },
@@ -504,7 +506,7 @@ const OffboardingTab: React.FC<OffboardingTabProps> = ({ employeeId, employeeNam
 
           <FormControl>
             <FormLabel color="whiteAlpha.900" fontSize="sm">Personal Email</FormLabel>
-            <HStack>
+            <HStack flexWrap="wrap">
               <Input
                 variant="filled"
                 type="email"
@@ -512,6 +514,8 @@ const OffboardingTab: React.FC<OffboardingTabProps> = ({ employeeId, employeeNam
                 value={personalEmail}
                 onChange={(e) => setPersonalEmail(e.target.value)}
                 color="white"
+                flex={1}
+                minW="200px"
               />
               <Button size="sm" onClick={handleSavePersonalEmail} isLoading={loading}>
                 Save

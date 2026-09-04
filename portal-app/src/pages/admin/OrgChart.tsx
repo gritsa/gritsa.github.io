@@ -57,7 +57,7 @@ const OrgChart: React.FC = () => {
     const reportees = orgTree.get(user.id) || [];
 
     return (
-      <Box key={user.id} ml={level * 8} mb={4}>
+      <Box key={user.id} ml={{ base: Math.min(level, 2) * 4, md: level * 8 }} mb={4}>
         <Card>
           <CardBody>
             <VStack align="start" spacing={1}>

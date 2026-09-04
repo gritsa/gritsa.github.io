@@ -180,12 +180,14 @@ const Expenses: React.FC = () => {
 
       // Notify manager (non-blocking)
       if (userData?.managerId) {
-        getUserInfo(userData.managerId).then((mgr) => {
+        const managerId = userData.managerId;
+        getUserInfo(managerId).then((mgr) => {
           if (!mgr) return;
           sendNotification({
             type: 'expense_submitted',
             to_email: mgr.email,
             to_name: mgr.name,
+            to_user_id: managerId,
             data: {
               employee_name: userData.displayName || userData.email || '',
               title: form.title,
@@ -362,7 +364,7 @@ const Expenses: React.FC = () => {
       </VStack>
 
       {/* Submit Expense Modal */}
-      <Modal isOpen={isOpen} onClose={onClose} size="lg">
+      <Modal isOpen={isOpen} onClose={onClose} size={{ base: 'full', md: 'lg' }}>
         <ModalOverlay />
         <ModalContent bg="#1a1a1a" borderColor="rgba(255,255,255,0.1)">
           <ModalHeader color="white">Submit Expense</ModalHeader>

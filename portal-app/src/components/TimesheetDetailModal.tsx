@@ -17,8 +17,8 @@ import {
   Badge,
   Text,
   VStack,
-  HStack,
   Box,
+  SimpleGrid,
 } from '@chakra-ui/react';
 import { DownloadIcon } from '@chakra-ui/icons';
 
@@ -193,7 +193,7 @@ const TimesheetDetailModal: React.FC<TimesheetDetailModalProps> = ({
   };
 
   return (
-    <Modal isOpen={isOpen} onClose={onClose} size="4xl" scrollBehavior="inside">
+    <Modal isOpen={isOpen} onClose={onClose} size={{ base: 'full', md: '4xl' }} scrollBehavior="inside">
       <ModalOverlay />
       <ModalContent bg="#1a1a1a" borderColor="rgba(255,255,255,0.1)">
         <ModalHeader color="white">
@@ -207,7 +207,7 @@ const TimesheetDetailModal: React.FC<TimesheetDetailModalProps> = ({
         <ModalBody>
           <VStack spacing={4} align="stretch">
             {/* Summary */}
-            <HStack spacing={6} p={4} bg="rgba(255,255,255,0.05)" borderRadius="lg">
+            <SimpleGrid columns={{ base: 2, md: 5 }} spacing={4} p={4} bg="rgba(255,255,255,0.05)" borderRadius="lg">
               <Box textAlign="center">
                 <Text fontSize="2xl" fontWeight="bold" color="green.300">{fullDays}</Text>
                 <Text fontSize="xs" color="whiteAlpha.600">Full Days</Text>
@@ -224,12 +224,12 @@ const TimesheetDetailModal: React.FC<TimesheetDetailModalProps> = ({
                 <Text fontSize="2xl" fontWeight="bold" color="white">{totalWorked}</Text>
                 <Text fontSize="xs" color="whiteAlpha.600">Days Worked</Text>
               </Box>
-              <Box ml="auto">
+              <Box textAlign="center" alignSelf="center">
                 <Badge colorScheme={timesheet.status === 'Submitted' ? 'green' : 'yellow'} fontSize="sm" p={2}>
                   {timesheet.status}
                 </Badge>
               </Box>
-            </HStack>
+            </SimpleGrid>
 
             {/* Day-by-day table */}
             <Box overflowX="auto">

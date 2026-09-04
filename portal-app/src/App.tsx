@@ -20,6 +20,8 @@ import NationalHolidays from './pages/NationalHolidays';
 import AdminDashboard from './pages/admin/AdminDashboard';
 import ManagerDashboard from './pages/manager/ManagerDashboard';
 import HRFinanceDashboard from './pages/hr-finance/HRFinanceDashboard';
+import PoliciesManagement from './pages/hr-finance/PoliciesManagement';
+import Policies from './pages/Policies';
 import Unauthorized from './pages/Unauthorized';
 
 function App() {
@@ -102,6 +104,24 @@ function App() {
               element={
                 <ProtectedRoute requireProfileComplete>
                   <NationalHolidays />
+                </ProtectedRoute>
+              }
+            />
+
+            <Route
+              path="/policies"
+              element={
+                <ProtectedRoute requireProfileComplete>
+                  <Policies />
+                </ProtectedRoute>
+              }
+            />
+
+            <Route
+              path="/policies/manage"
+              element={
+                <ProtectedRoute requiredRoles={['HR-Finance', 'Administrator']} requireProfileComplete>
+                  <PoliciesManagement />
                 </ProtectedRoute>
               }
             />

@@ -42,6 +42,7 @@ import { Layout } from '../../components/Layout';
 import { useAuth } from '../../contexts/AuthContext';
 import { supabase } from '../../config/supabase';
 import TimesheetDetailModal from '../../components/TimesheetDetailModal';
+import MonthYearFilter from '../../components/MonthYearFilter';
 import ExpenseApprovalsTab from './ExpenseApprovalsTab';
 import { sendNotification, getUserInfo } from '../../utils/notifications';
 import { getLeaveBalanceSummary } from '../../utils/leaveBalance';
@@ -106,7 +107,8 @@ const ManagerDashboard: React.FC = () => {
   const [reviewComments, setReviewComments] = useState('');
   const [loading, setLoading] = useState(false);
   const [timesheetFilterEmployee, setTimesheetFilterEmployee] = useState('');
-  const [timesheetFilterYear, setTimesheetFilterYear] = useState(String(new Date().getFullYear()));
+  const [timesheetFilterYear, setTimesheetFilterYear] = useState<number | ''>(new Date().getFullYear());
+  const [timesheetFilterMonth, setTimesheetFilterMonth] = useState<number | ''>('');
   const { isOpen, onOpen, onClose } = useDisclosure();
   const {
     isOpen: isTimesheetOpen,
@@ -302,6 +304,7 @@ const ManagerDashboard: React.FC = () => {
             type: 'leave_reviewed',
             to_email: emp.email,
             to_name: emp.name,
+            to_user_id: selectedLeave.employee_id,
             data: {
               leave_type: selectedLeave.leave_type,
               from_date: from.toLocaleDateString('en-IN'),
@@ -452,6 +455,7 @@ const ManagerDashboard: React.FC = () => {
         type: 'leave_applied_by_manager',
         to_email: applyReportee.email,
         to_name: leaveRequest.employee_name,
+        to_user_id: applyReportee.id,
         data: {
           leave_type: leaveRequest.leave_type,
           from_date: new Date(fromDate).toLocaleDateString('en-IN'),
@@ -534,6 +538,7 @@ const ManagerDashboard: React.FC = () => {
         type: 'leave_awarded',
         to_email: awardReportee.email,
         to_name: awardReportee.display_name || awardReportee.email,
+        to_user_id: awardReportee.id,
         data: {
           days: String(awardDays),
           reason: awardReason || '',
@@ -558,12 +563,16 @@ const ManagerDashboard: React.FC = () => {
   const filteredTimesheets = timesheets
     .filter((t) => {
       if (timesheetFilterEmployee && t.employee_id !== timesheetFilterEmployee) return false;
-      if (timesheetFilterYear && String(t.year) !== timesheetFilterYear) return false;
+      if (timesheetFilterYear !== '' && t.year !== timesheetFilterYear) return false;
+      if (timesheetFilterMonth !== '' && t.month !== timesheetFilterMonth) return false;
       return true;
     })
     .sort((a, b) => b.year - a.year || b.month - a.month);
 
   const availableYears = [...new Set(timesheets.map((t) => t.year))].sort((a, b) => b - a);
+  if (!availableYears.includes(new Date().getFullYear())) {
+    availableYears.unshift(new Date().getFullYear());
+  }
 
   return (
     <Layout>
@@ -638,7 +647,7 @@ const ManagerDashboard: React.FC = () => {
                 <CardBody>
                   <VStack spacing={4} align="stretch">
                     <Heading size="md">Team Timesheets</Heading>
-                    <HStack spacing={4}>
+                    <HStack spacing={4} flexWrap="wrap">
                       <Select
                         placeholder="All Employees"
                         value={timesheetFilterEmployee}
@@ -652,19 +661,15 @@ const ManagerDashboard: React.FC = () => {
                           </option>
                         ))}
                       </Select>
-                      <Select
-                        value={timesheetFilterYear}
-                        onChange={(e) => setTimesheetFilterYear(e.target.value)}
-                        maxW="120px"
-                        size="sm"
-                      >
-                        {availableYears.map((y) => (
-                          <option key={y} value={y}>{y}</option>
-                        ))}
-                        {!availableYears.includes(new Date().getFullYear()) && (
-                          <option value={String(new Date().getFullYear())}>{new Date().getFullYear()}</option>
-                        )}
-                      </Select>
+                      <MonthYearFilter
+                        month={timesheetFilterMonth}
+                        year={timesheetFilterYear}
+                        onMonthChange={setTimesheetFilterMonth}
+                        onYearChange={setTimesheetFilterYear}
+                        monthOffset={0}
+                        years={availableYears}
+                        allowAll
+                      />
                     </HStack>
                     {filteredTimesheets.length === 0 ? (
                       <Text color="gray.500">No timesheets found</Text>

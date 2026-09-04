@@ -9,6 +9,10 @@ GitHub Pages site itself. That's why the layout looks unusual:
 gritsa.github.io/              <- GitHub Pages serves from here (repo root)
 ├── index.html                 <- built output (committed, not hand-written)
 ├── assets/                    <- built output (JS/CSS bundles, committed)
+├── sw.js                      <- built output: PWA service worker (committed, stable filename)
+├── manifest.webmanifest       <- built output: PWA manifest (committed, stable filename)
+├── registerSW.js              <- built output: SW registration snippet (committed)
+├── pwa-*.png                  <- PWA icons, generated once from favicon.ico via `sips`
 ├── CNAME                      <- custom domain: portal.gritsa.com
 ├── .nojekyll                  <- disables Jekyll processing on GH Pages
 ├── .github/workflows/deploy.yml
@@ -20,11 +24,12 @@ gritsa.github.io/              <- GitHub Pages serves from here (repo root)
     │   ├── contexts/           <- AuthContext (Supabase session + user row)
     │   ├── config/supabase.ts  <- Supabase client singleton
     │   ├── types/index.ts      <- shared TypeScript types, mirrors DB schema
-    │   └── utils/              <- notifications, secure document URLs
+    │   ├── sw.js               <- PWA service worker SOURCE (compiled to root sw.js on build)
+    │   └── utils/              <- notifications, push notifications, secure document URLs
     ├── supabase/
     │   ├── migrations/         <- numbered SQL migrations, source of truth for schema
     │   └── functions/          <- Edge Functions (Deno)
-    └── vite.config.ts          <- outDir points at repo root (see deployment.md)
+    └── vite.config.ts          <- outDir points at repo root; also configures vite-plugin-pwa
 ```
 
 **Important:** there is no separate backend service. "Backend" means a Supabase project
@@ -71,12 +76,40 @@ mirrored by the Postgres `user_role` enum. Role-specific pages live under
 
 - **Onboarding**: `Login`, `Signup`, `ForgotPassword`, `ResetPassword`, `CompleteProfile`
 - **Employee self-service**: `Dashboard`, `EmployeeProfile`, `MySpace` (personal documents),
-  `Timesheet`, `Expenses`, `LeaveManagement`, `NationalHolidays`
+  `Timesheet`, `Expenses`, `LeaveManagement`, `NationalHolidays`, `Policies` (review and digitally
+  sign policies assigned to you, using a reusable drawn signature)
 - **Admin** (`pages/admin/`): `UserManagement`, `ProjectManagement`, `OrgChart`,
   `TimesheetReview`, `HolidayManagement`
 - **Manager** (`pages/manager/`): `ManagerDashboard` (team view, leave approvals, applying and
   auto-approving leave on behalf of a reportee who can't apply themselves, awarding extra paid
   leave e.g. for overtime/weekend work), `ExpenseApprovalsTab`
 - **HR-Finance** (`pages/hr-finance/`): `HRFinanceDashboard` tabs for payroll (`PayrollTab`),
-  employee documents, timesheets, expenses, and employee offboarding (`OffboardingTab`) across
-  the whole org
+  employee documents, timesheets, expenses, employee offboarding (`OffboardingTab`), and
+  per-employee policy tracking (`HRPoliciesTab`) across the whole org; `PoliciesManagement`
+  (author policies with a Tiptap rich-text editor, group them into reusable sets, **Assign** them
+  to employees with a due date, and **Track** signing progress — split into separate tabs since
+  they're different jobs)
+
+## PWA & push notifications
+
+The app is an installable PWA (`vite-plugin-pwa`, `injectManifest` strategy — not the default
+`generateSW`, because web push needs custom handlers a generated service worker can't provide).
+`portal-app/src/sw.js` is the service worker source; it precaches only the build's own static
+assets via Workbox (`precacheAndRoute(self.__WB_MANIFEST)`) — it registers **no runtime-caching
+routes**, so every Supabase API call still goes straight to the network, uncached. This is
+deliberate: it means the service worker can never serve stale employee data, at the cost of the
+app shell (not the data) being available offline.
+
+`sw.js` calls `self.skipWaiting()` at install and `self.clients.claim()` at activate, so a new
+deploy's service worker takes over immediately instead of sitting in "waiting" until every tab is
+fully closed — which may never happen for an installed home-screen PWA that's just backgrounded,
+not closed. Without this, a stale precached `index.html`/JS bundle can keep being served
+indefinitely across deploys. See [deployment.md](deployment.md) for a separate, CDN-level cache
+issue (Cloudflare caching `sw.js` itself) that can still delay this by hours.
+
+Push notifications (`src/utils/pushNotifications.ts`, the `send-push` Edge Function — see
+[edge-functions.md](edge-functions.md)) are built on top of this service worker's `push` and
+`notificationclick` listeners, and run **alongside** the existing email notifications
+(`send-notification`), not instead of them — see [data-model.md](data-model.md) for the
+`push_subscriptions` table. iOS only supports web push from a home-screen-installed PWA (Safari
+alone won't do it), which is why the PWA conversion had to land before push notifications could.

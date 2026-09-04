@@ -4,6 +4,7 @@ import {
   Heading,
   VStack,
   HStack,
+  Stack,
   Tabs,
   TabList,
   TabPanels,
@@ -27,6 +28,7 @@ import HRDocumentsTab from './HRDocumentsTab';
 import HRTimesheetsTab from './HRTimesheetsTab';
 import HRExpensesTab from './HRExpensesTab';
 import OffboardingTab from './OffboardingTab';
+import HRPoliciesTab from './HRPoliciesTab';
 
 interface Employee {
   id: string;
@@ -87,13 +89,14 @@ const HRFinanceDashboard: React.FC = () => {
       <VStack spacing={6} align="stretch">
         <Heading size="lg" color="white">HR & Finance</Heading>
 
-        <HStack spacing={6} align="stretch">
+        <Stack direction={{ base: 'column', md: 'row' }} spacing={6} align="stretch">
           {/* Employee List Sidebar */}
           <Card
             bg="rgba(255, 255, 255, 0.05)"
             borderColor="rgba(255, 255, 255, 0.1)"
-            w="300px"
-            h="calc(100vh - 200px)"
+            w={{ base: '100%', md: '300px' }}
+            h={{ base: 'auto', md: 'calc(100vh - 200px)' }}
+            maxH={{ base: '320px', md: 'calc(100vh - 200px)' }}
             overflowY="auto"
           >
             <CardBody>
@@ -155,7 +158,7 @@ const HRFinanceDashboard: React.FC = () => {
 
                     {/* Tabs for Payroll, HR, Documents, and Timesheets */}
                     <Tabs variant="enclosed" colorScheme="brand">
-                      <TabList>
+                      <TabList overflowX="auto" overflowY="hidden" flexWrap="nowrap">
                         <Tab color="whiteAlpha.700" _selected={{ color: 'white', bg: 'rgba(255, 255, 255, 0.1)' }}>
                           Payroll
                         </Tab>
@@ -176,6 +179,9 @@ const HRFinanceDashboard: React.FC = () => {
                         </Tab>
                         <Tab color="whiteAlpha.700" _selected={{ color: 'white', bg: 'rgba(255, 255, 255, 0.1)' }}>
                           Offboarding
+                        </Tab>
+                        <Tab color="whiteAlpha.700" _selected={{ color: 'white', bg: 'rgba(255, 255, 255, 0.1)' }}>
+                          Policies
                         </Tab>
                       </TabList>
 
@@ -208,6 +214,12 @@ const HRFinanceDashboard: React.FC = () => {
                             employeeEmail={selectedEmployee.email}
                           />
                         </TabPanel>
+                        <TabPanel>
+                          <HRPoliciesTab
+                            employeeId={selectedEmployee.id}
+                            employeeName={selectedEmployee.display_name || selectedEmployee.email}
+                          />
+                        </TabPanel>
                       </TabPanels>
                     </Tabs>
                   </VStack>
@@ -221,7 +233,7 @@ const HRFinanceDashboard: React.FC = () => {
               </Card>
             )}
           </Box>
-        </HStack>
+        </Stack>
       </VStack>
     </Layout>
   );

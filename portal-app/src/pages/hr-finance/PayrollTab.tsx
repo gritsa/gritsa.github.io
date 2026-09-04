@@ -1,12 +1,12 @@
 import React, { useState, useEffect } from 'react';
 import {
+  Box,
   VStack,
   HStack,
   Button,
   FormControl,
   FormLabel,
   Input,
-  Select,
   SimpleGrid,
   Text,
   useToast,
@@ -33,6 +33,7 @@ import {
 import { AddIcon, EditIcon, ViewIcon, DeleteIcon } from '@chakra-ui/icons';
 import { supabase } from '../../config/supabase';
 import { useAuth } from '../../contexts/AuthContext';
+import MonthYearFilter from '../../components/MonthYearFilter';
 import type { SalaryStructure, Payslip } from '../../types';
 import { sendNotification, getUserInfo } from '../../utils/notifications';
 
@@ -87,8 +88,12 @@ const PayrollTab: React.FC<PayrollTabProps> = ({ employeeId }) => {
 
   useEffect(() => {
     fetchSalaryStructures();
-    fetchPayslips();
   }, [employeeId]);
+
+  useEffect(() => {
+    fetchPayslips();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [employeeId, selectedMonth, selectedYear]);
 
   const fetchSalaryStructures = async () => {
     try {
@@ -111,6 +116,8 @@ const PayrollTab: React.FC<PayrollTabProps> = ({ employeeId }) => {
         .from('payslips')
         .select('*')
         .eq('employee_id', employeeId)
+        .eq('month', selectedMonth)
+        .eq('year', selectedYear)
         .order('year', { ascending: false })
         .order('month', { ascending: false });
 
@@ -435,6 +442,7 @@ const PayrollTab: React.FC<PayrollTabProps> = ({ employeeId }) => {
           type: 'payslip_generated',
           to_email: emp.email,
           to_name: emp.name,
+          to_user_id: employeeId,
           data: {
             month: months[selectedMonth - 1],
             year: selectedYear,
@@ -499,7 +507,7 @@ const PayrollTab: React.FC<PayrollTabProps> = ({ employeeId }) => {
       {/* Salary Structures */}
       <Card bg="rgba(255, 255, 255, 0.03)">
         <CardBody>
-          <HStack justify="space-between" mb={4}>
+          <HStack justify="space-between" mb={4} flexWrap="wrap" gap={2}>
             <Heading size="sm" color="white">Salary Structures</Heading>
             <Button
               leftIcon={<AddIcon />}
@@ -514,6 +522,7 @@ const PayrollTab: React.FC<PayrollTabProps> = ({ employeeId }) => {
           {salaryStructures.length === 0 ? (
             <Text color="whiteAlpha.700">No salary structures configured</Text>
           ) : (
+            <Box overflowX="auto">
             <Table size="sm">
               <Thead>
                 <Tr>
@@ -563,6 +572,7 @@ const PayrollTab: React.FC<PayrollTabProps> = ({ employeeId }) => {
                 ))}
               </Tbody>
             </Table>
+            </Box>
           )}
         </CardBody>
       </Card>
@@ -570,35 +580,16 @@ const PayrollTab: React.FC<PayrollTabProps> = ({ employeeId }) => {
       {/* Payslips */}
       <Card bg="rgba(255, 255, 255, 0.03)">
         <CardBody>
-          <HStack justify="space-between" mb={4}>
+          <HStack justify="space-between" mb={4} flexWrap="wrap" gap={3}>
             <Heading size="sm" color="white">Payslips</Heading>
-            <HStack>
-              <Select
-                size="sm"
-                value={selectedMonth}
-                onChange={(e) => setSelectedMonth(parseInt(e.target.value))}
-                maxW="120px"
-                variant="filled"
-                color="white"
-              >
-                {Array.from({ length: 12 }, (_, i) => (
-                  <option key={i + 1} value={i + 1}>
-                    {new Date(2000, i).toLocaleString('default', { month: 'long' })}
-                  </option>
-                ))}
-              </Select>
-              <Select
-                size="sm"
-                value={selectedYear}
-                onChange={(e) => setSelectedYear(parseInt(e.target.value))}
-                maxW="100px"
-                variant="filled"
-                color="white"
-              >
-                {[2024, 2025, 2026, 2027].map((year) => (
-                  <option key={year} value={year}>{year}</option>
-                ))}
-              </Select>
+            <HStack flexWrap="wrap">
+              <MonthYearFilter
+                month={selectedMonth}
+                year={selectedYear}
+                onMonthChange={(m) => { if (m !== '') setSelectedMonth(m); }}
+                onYearChange={(y) => { if (y !== '') setSelectedYear(y); }}
+                monthOffset={1}
+              />
               <Button
                 size="sm"
                 variant="gradient"
@@ -612,6 +603,7 @@ const PayrollTab: React.FC<PayrollTabProps> = ({ employeeId }) => {
           {payslips.length === 0 ? (
             <Text color="whiteAlpha.700">No payslips generated yet</Text>
           ) : (
+            <Box overflowX="auto">
             <Table size="sm">
               <Thead>
                 <Tr>
@@ -662,12 +654,13 @@ const PayrollTab: React.FC<PayrollTabProps> = ({ employeeId }) => {
                 ))}
               </Tbody>
             </Table>
+            </Box>
           )}
         </CardBody>
       </Card>
 
       {/* Salary Structure Modal */}
-      <Modal isOpen={isSalaryOpen} onClose={onSalaryClose} size="4xl">
+      <Modal isOpen={isSalaryOpen} onClose={onSalaryClose} size={{ base: 'full', md: '4xl' }}>
         <ModalOverlay />
         <ModalContent bg="#1a1a1a" borderColor="rgba(255, 255, 255, 0.1)">
           <ModalHeader color="white">{editingSalaryId ? 'Edit' : 'Add'} Salary Structure</ModalHeader>
@@ -793,7 +786,7 @@ const PayrollTab: React.FC<PayrollTabProps> = ({ employeeId }) => {
       </Modal>
 
       {/* Payslip Modal */}
-      <Modal isOpen={isPayslipOpen} onClose={onPayslipClose} size="3xl">
+      <Modal isOpen={isPayslipOpen} onClose={onPayslipClose} size={{ base: 'full', md: '3xl' }}>
         <ModalOverlay />
         <ModalContent bg="#1a1a1a" borderColor="rgba(255, 255, 255, 0.1)">
           <ModalHeader color="white">
