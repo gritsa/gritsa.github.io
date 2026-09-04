@@ -555,7 +555,7 @@ const totalHolidays = leaveBalanceSummary.totalHolidays;
 
                   {formData.fromDate && formData.toDate && (
                     <Box p={3} bg="blue.50" borderRadius="md" w="full">
-                      <Text fontSize="sm" fontWeight="bold">
+                      <Text fontSize="sm" fontWeight="bold" color="blue.800">
                         Total Days: {calculateLeaveDays()}
                       </Text>
                     </Box>

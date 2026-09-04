@@ -27,6 +27,11 @@ in the frontend. The frontend only decides what to *render*; the database decide
 - **`leave_requests`** — leave applications with `status` (`Pending`/`Approved`/`Rejected`),
   reviewed by a manager/admin.
 - **`national_holidays`** — admin-configurable list, scoped by `year`.
+- **`leave_grants`** (`019_manager_leave_actions.sql`) — audit log of extra Paid & Sick days a
+  Manager/Administrator has awarded a reportee (e.g. compensatory leave for overtime). Not read
+  by the balance calculation — awarding a grant directly increments the target
+  `leave_balances.paid_and_sick` total at the time it's granted; this table only records
+  who/when/why for later reference.
 
 ## HR-Finance tables (`007_hr_finance_schema.sql`, extended in `008`/`009`)
 
@@ -116,20 +121,29 @@ similar symptoms:
   `013_fix_storage_rls.sql` — same class of "policy was too strict / recursive" fixes for
   those tables and the storage bucket.
 
-**`010_fix_leave_balances_rls.sql` left a gap that's still live**: it restricts `UPDATE` on
-`leave_balances` to `auth.uid() = user_id` (the migration's own comment says admin/manager
-writes to *another* employee's row need "service role or a backend function," which was never
-built). In practice this means when a manager approves an employee's leave
-(`ManagerDashboard.tsx`'s `handleApproveReject`), its attempt to increment that employee's
-`used_paid_and_sick`/`used_national_holidays` is silently dropped by RLS — 0 rows match, no
-error is thrown. So those two counter columns are permanently stale (effectively always 0) for
-approvals done by anyone other than the employee themself. Both `Dashboard.tsx` and
-`LeaveManagement.tsx` work around this by never trusting the stored counters: remaining balance
-is always computed from approved `leave_requests` history for the current year via
-`src/utils/leaveBalance.ts`, using `leave_balances` only for the annual quota
+**`010_fix_leave_balances_rls.sql` left a gap, partially closed in `019`**: it restricts
+`UPDATE`/`INSERT` on `leave_balances` to `auth.uid() = user_id` (the migration's own comment says
+admin/manager writes to *another* employee's row need "service role or a backend function,"
+which wasn't built at the time). In practice this meant when a manager approved an employee's
+leave (`ManagerDashboard.tsx`'s `handleApproveReject`), its attempt to increment that employee's
+`used_paid_and_sick`/`used_national_holidays` was silently dropped by RLS — 0 rows match, no
+error thrown. So those two counter columns are permanently stale (effectively always 0) for
+approvals done by anyone other than the employee themself — `handleApproveReject` still makes
+this now-pointless write attempt; it's harmless, just dead weight.
+
+Both `Dashboard.tsx` and `LeaveManagement.tsx` work around the stale counters by never trusting
+them: remaining balance is always computed from approved `leave_requests` history for the
+current year via `src/utils/leaveBalance.ts`, using `leave_balances` only for the annual quota
 (`paid_and_sick`/`national_holidays`). If you're tempted to read `used_paid_and_sick` directly
 for a new feature, don't — go through `getLeaveBalanceSummary()` instead, or you'll reintroduce
 the "shows 18 remaining regardless of approved leave" bug this pattern exists to avoid.
+
+`019_manager_leave_actions.sql` adds policies letting a Manager `INSERT`/`UPDATE` their
+reportees' `leave_balances` rows (and an Administrator any row) — needed for the "award extra
+leave" feature, which *does* need a real write to succeed (it changes the quota, not a `used_*`
+counter). If you add another feature that needs a manager/admin to write to a table scoped by
+`employee_id`/`user_id`, check whether a similar policy already exists before assuming it does —
+this table alone needed two separate follow-up migrations to get right.
 
 If a query hangs or silently returns nothing and you suspect RLS, check the corresponding table
 in the Supabase dashboard's policy editor before adding a new migration — there's a real chance

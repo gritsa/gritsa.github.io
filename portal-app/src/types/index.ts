@@ -209,3 +209,13 @@ export interface EmployeeOffboarding {
   created_at: string;
   updated_at: string;
 }
+
+export interface LeaveGrant {
+  id: string;
+  employee_id: string;
+  granted_by: string;
+  year: number;
+  days: number;
+  reason?: string;
+  granted_at: string;
+}

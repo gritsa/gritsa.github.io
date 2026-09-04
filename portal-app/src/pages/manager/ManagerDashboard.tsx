@@ -31,6 +31,11 @@ import {
   Textarea,
   HStack,
   Select,
+  FormControl,
+  FormLabel,
+  Input,
+  NumberInput,
+  NumberInputField,
 } from '@chakra-ui/react';
 import { ViewIcon } from '@chakra-ui/icons';
 import { Layout } from '../../components/Layout';
@@ -39,6 +44,8 @@ import { supabase } from '../../config/supabase';
 import TimesheetDetailModal from '../../components/TimesheetDetailModal';
 import ExpenseApprovalsTab from './ExpenseApprovalsTab';
 import { sendNotification, getUserInfo } from '../../utils/notifications';
+import { getLeaveBalanceSummary } from '../../utils/leaveBalance';
+import type { LeaveType } from '../../types';
 
 interface LeaveRequest {
   id: string;
@@ -106,11 +113,61 @@ const ManagerDashboard: React.FC = () => {
     onOpen: onTimesheetOpen,
     onClose: onTimesheetClose,
   } = useDisclosure();
+
+  // Apply leave on behalf of a reportee
+  const [nationalHolidays, setNationalHolidays] = useState<any[]>([]);
+  const [applyReportee, setApplyReportee] = useState<User | null>(null);
+  const [applyReporteeBalance, setApplyReporteeBalance] = useState<LeaveBalance | null>(null);
+  const [applyLoading, setApplyLoading] = useState(false);
+  const [applyFormData, setApplyFormData] = useState({
+    leaveType: 'Paid' as LeaveType,
+    fromDate: '',
+    toDate: '',
+    reason: '',
+    selectedHolidayId: '',
+  });
+  const { isOpen: isApplyOpen, onOpen: onApplyOpen, onClose: onApplyClose } = useDisclosure();
+
+  // Award extra paid/sick leave to a reportee
+  const [awardReportee, setAwardReportee] = useState<User | null>(null);
+  const [awardReporteeBalance, setAwardReporteeBalance] = useState<LeaveBalance | null>(null);
+  const [awardDays, setAwardDays] = useState(1);
+  const [awardReason, setAwardReason] = useState('');
+  const [awardLoading, setAwardLoading] = useState(false);
+  const { isOpen: isAwardOpen, onOpen: onAwardOpen, onClose: onAwardClose } = useDisclosure();
+
   const toast = useToast();
 
   useEffect(() => {
     fetchData();
+    fetchNationalHolidays();
   }, [currentUser]);
+
+  const fetchNationalHolidays = async () => {
+    try {
+      const { data, error } = await supabase
+        .from('national_holidays')
+        .select('*')
+        .eq('year', new Date().getFullYear())
+        .eq('is_active', true)
+        .order('date', { ascending: true });
+
+      if (error) throw error;
+      setNationalHolidays(data || []);
+    } catch (error) {
+      console.error('Error fetching national holidays:', error);
+    }
+  };
+
+  const fetchReporteeBalance = async (employeeId: string): Promise<LeaveBalance | null> => {
+    const { data } = await supabase
+      .from('leave_balances')
+      .select('*')
+      .eq('user_id', employeeId)
+      .eq('year', new Date().getFullYear())
+      .single();
+    return data || null;
+  };
 
   const fetchData = async () => {
     if (!currentUser) return;
@@ -297,6 +354,203 @@ const ManagerDashboard: React.FC = () => {
     setSelectedTimesheet(timesheet);
     setTimesheetEmployeeName(employee?.display_name || employee?.email || 'Unknown');
     onTimesheetOpen();
+  };
+
+  const openApplyModal = async (reportee: User) => {
+    setApplyReportee(reportee);
+    setApplyReporteeBalance(null);
+    setApplyFormData({
+      leaveType: 'Paid',
+      fromDate: '',
+      toDate: '',
+      reason: '',
+      selectedHolidayId: '',
+    });
+    onApplyOpen();
+    setApplyReporteeBalance(await fetchReporteeBalance(reportee.id));
+  };
+
+  const handleApplyInputChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>) => {
+    setApplyFormData({ ...applyFormData, [e.target.name]: e.target.value });
+  };
+
+  const calculateApplyLeaveDays = () => {
+    if (!applyFormData.fromDate || !applyFormData.toDate) return 0;
+    const from = new Date(applyFormData.fromDate);
+    const to = new Date(applyFormData.toDate);
+    const diffTime = Math.abs(to.getTime() - from.getTime());
+    return Math.ceil(diffTime / (1000 * 60 * 60 * 24)) + 1;
+  };
+
+  const reporteeLeaveRequests = (employeeId: string) =>
+    leaveRequests.filter((l) => l.employee_id === employeeId);
+
+  const handleApplyOnBehalf = async () => {
+    if (!applyReportee || !currentUser) return;
+
+    let fromDate = applyFormData.fromDate;
+    let toDate = applyFormData.toDate;
+    let reason = applyFormData.reason;
+
+    if (applyFormData.leaveType === 'National Holiday') {
+      if (!applyFormData.selectedHolidayId) {
+        toast({ title: 'Please select a holiday', status: 'error', duration: 4000 });
+        return;
+      }
+      const selectedHoliday = nationalHolidays.find((h) => h.id === applyFormData.selectedHolidayId);
+      if (!selectedHoliday) {
+        toast({ title: 'Invalid holiday selection', status: 'error', duration: 4000 });
+        return;
+      }
+      const alreadyAvailed = reporteeLeaveRequests(applyReportee.id).some(
+        (req) => req.leave_type === 'National Holiday' &&
+          req.from_date === selectedHoliday.date &&
+          req.status === 'Approved'
+      );
+      if (alreadyAvailed) {
+        toast({ title: 'Holiday already availed', description: `${applyReportee.display_name || applyReportee.email} has already availed this holiday`, status: 'error', duration: 5000 });
+        return;
+      }
+      fromDate = selectedHoliday.date;
+      toDate = selectedHoliday.date;
+      reason = selectedHoliday.name;
+    } else {
+      if (!fromDate || !toDate || !reason) {
+        toast({ title: 'Please fill in all fields', status: 'error', duration: 4000 });
+        return;
+      }
+    }
+
+    setApplyLoading(true);
+    try {
+      const leaveRequest = {
+        employee_id: applyReportee.id,
+        employee_name: applyReportee.display_name || applyReportee.email,
+        manager_id: currentUser.id,
+        leave_type: applyFormData.leaveType,
+        from_date: fromDate,
+        to_date: toDate,
+        reason,
+        status: 'Approved' as const,
+        applied_at: new Date().toISOString(),
+        reviewed_by: currentUser.id,
+        reviewed_at: new Date().toISOString(),
+      };
+
+      const { error } = await supabase.from('leave_requests').insert(leaveRequest);
+      if (error) throw error;
+
+      toast({
+        title: 'Leave applied and approved',
+        description: `Leave has been recorded for ${leaveRequest.employee_name}`,
+        status: 'success',
+        duration: 4000,
+      });
+
+      const days = applyFormData.leaveType === 'National Holiday' ? 1 : calculateApplyLeaveDays();
+      sendNotification({
+        type: 'leave_applied_by_manager',
+        to_email: applyReportee.email,
+        to_name: leaveRequest.employee_name,
+        data: {
+          leave_type: leaveRequest.leave_type,
+          from_date: new Date(fromDate).toLocaleDateString('en-IN'),
+          to_date: new Date(toDate).toLocaleDateString('en-IN'),
+          days: String(days),
+          reason,
+        },
+      });
+
+      await fetchData();
+      onApplyClose();
+    } catch (error: any) {
+      toast({
+        title: 'Error applying leave',
+        description: error.message,
+        status: 'error',
+        duration: 5000,
+      });
+    } finally {
+      setApplyLoading(false);
+    }
+  };
+
+  const openAwardModal = async (reportee: User) => {
+    setAwardReportee(reportee);
+    setAwardReporteeBalance(null);
+    setAwardDays(1);
+    setAwardReason('');
+    onAwardOpen();
+    setAwardReporteeBalance(await fetchReporteeBalance(reportee.id));
+  };
+
+  const handleAwardLeave = async () => {
+    if (!awardReportee || !currentUser) return;
+    if (!awardDays || awardDays <= 0) {
+      toast({ title: 'Days must be at least 1', status: 'error', duration: 4000 });
+      return;
+    }
+
+    setAwardLoading(true);
+    try {
+      const year = new Date().getFullYear();
+
+      if (awardReporteeBalance) {
+        const { error } = await supabase
+          .from('leave_balances')
+          .update({ paid_and_sick: awardReporteeBalance.paid_and_sick + awardDays })
+          .eq('user_id', awardReportee.id)
+          .eq('year', year);
+        if (error) throw error;
+      } else {
+        const { error } = await supabase.from('leave_balances').insert({
+          user_id: awardReportee.id,
+          year,
+          paid_and_sick: 18 + awardDays,
+          national_holidays: 10,
+          used_paid_and_sick: 0,
+          used_national_holidays: 0,
+        });
+        if (error) throw error;
+      }
+
+      const { error: grantError } = await supabase.from('leave_grants').insert({
+        employee_id: awardReportee.id,
+        granted_by: currentUser.id,
+        year,
+        days: awardDays,
+        reason: awardReason || null,
+      });
+      if (grantError) throw grantError;
+
+      toast({
+        title: 'Leave awarded',
+        description: `${awardDays} extra day(s) added for ${awardReportee.display_name || awardReportee.email}`,
+        status: 'success',
+        duration: 4000,
+      });
+
+      sendNotification({
+        type: 'leave_awarded',
+        to_email: awardReportee.email,
+        to_name: awardReportee.display_name || awardReportee.email,
+        data: {
+          days: String(awardDays),
+          reason: awardReason || '',
+        },
+      });
+
+      onAwardClose();
+    } catch (error: any) {
+      toast({
+        title: 'Error awarding leave',
+        description: error.message,
+        status: 'error',
+        duration: 5000,
+      });
+    } finally {
+      setAwardLoading(false);
+    }
   };
 
   const pendingLeaves = leaveRequests.filter((l) => l.status === 'Pending');
@@ -493,6 +747,7 @@ const ManagerDashboard: React.FC = () => {
                               <Th>Email</Th>
                               <Th>Role</Th>
                               <Th>Projects</Th>
+                              <Th>Actions</Th>
                             </Tr>
                           </Thead>
                           <Tbody>
@@ -504,6 +759,16 @@ const ManagerDashboard: React.FC = () => {
                                   <Badge colorScheme="green">{reportee.role}</Badge>
                                 </Td>
                                 <Td>{reportee.project_ids?.length || 0} projects</Td>
+                                <Td>
+                                  <HStack spacing={2}>
+                                    <Button size="sm" onClick={() => openApplyModal(reportee)}>
+                                      Apply Leave
+                                    </Button>
+                                    <Button size="sm" colorScheme="purple" variant="outline" onClick={() => openAwardModal(reportee)}>
+                                      Award Leave
+                                    </Button>
+                                  </HStack>
+                                </Td>
                               </Tr>
                             ))}
                           </Tbody>
@@ -583,6 +848,182 @@ const ManagerDashboard: React.FC = () => {
               isLoading={loading}
             >
               Approve
+            </Button>
+          </ModalFooter>
+        </ModalContent>
+      </Modal>
+
+      {/* Apply Leave on Behalf of Reportee */}
+      <Modal isOpen={isApplyOpen} onClose={onApplyClose} size="lg">
+        <ModalOverlay />
+        <ModalContent>
+          <ModalHeader>
+            Apply Leave for {applyReportee?.display_name || applyReportee?.email}
+          </ModalHeader>
+          <ModalCloseButton />
+          <ModalBody>
+            <VStack spacing={4}>
+              {applyReporteeBalance && (
+                <Box p={3} bg="blue.50" borderRadius="md" w="full">
+                  <Text fontSize="sm" color="blue.800">
+                    Current Paid & Sick balance: {
+                      getLeaveBalanceSummary(applyReporteeBalance, reporteeLeaveRequests(applyReportee?.id || '')).remainingPaidSick
+                    } remaining
+                  </Text>
+                </Box>
+              )}
+
+              <FormControl isRequired>
+                <FormLabel>Leave Type</FormLabel>
+                <Select name="leaveType" value={applyFormData.leaveType} onChange={handleApplyInputChange}>
+                  <option value="Paid">Paid Leave</option>
+                  <option value="Sick">Sick Leave</option>
+                  <option value="National Holiday">National Holiday</option>
+                </Select>
+                {applyFormData.leaveType !== 'National Holiday' && (
+                  <Text fontSize="xs" color="gray.500" mt={1}>
+                    Tip: even on a national holiday, choose Paid or Sick here to preserve their
+                    national holiday credit and deduct from paid leave instead.
+                  </Text>
+                )}
+              </FormControl>
+
+              {applyFormData.leaveType === 'National Holiday' ? (
+                <FormControl isRequired>
+                  <FormLabel>Select Holiday</FormLabel>
+                  <Select
+                    name="selectedHolidayId"
+                    value={applyFormData.selectedHolidayId}
+                    onChange={handleApplyInputChange}
+                    placeholder="Choose a holiday"
+                  >
+                    {nationalHolidays.map((holiday) => {
+                      const alreadyAvailed = applyReportee
+                        ? reporteeLeaveRequests(applyReportee.id).some(
+                          (req) => req.leave_type === 'National Holiday' &&
+                            req.from_date === holiday.date &&
+                            req.status === 'Approved'
+                        )
+                        : false;
+                      return (
+                        <option key={holiday.id} value={holiday.id} disabled={alreadyAvailed}>
+                          {holiday.name} - {new Date(holiday.date).toLocaleDateString('en-IN', {
+                            day: 'numeric', month: 'long', weekday: 'short',
+                          })}
+                          {alreadyAvailed ? ' (Already Availed)' : ''}
+                        </option>
+                      );
+                    })}
+                  </Select>
+                </FormControl>
+              ) : (
+                <>
+                  <FormControl isRequired>
+                    <FormLabel>From Date</FormLabel>
+                    <Input
+                      type="date"
+                      name="fromDate"
+                      value={applyFormData.fromDate}
+                      onChange={handleApplyInputChange}
+                    />
+                  </FormControl>
+
+                  <FormControl isRequired>
+                    <FormLabel>To Date</FormLabel>
+                    <Input
+                      type="date"
+                      name="toDate"
+                      value={applyFormData.toDate}
+                      onChange={handleApplyInputChange}
+                    />
+                  </FormControl>
+
+                  {applyFormData.fromDate && applyFormData.toDate && (
+                    <Box p={3} bg="blue.50" borderRadius="md" w="full">
+                      <Text fontSize="sm" fontWeight="bold" color="blue.800">
+                        Total Days: {calculateApplyLeaveDays()}
+                      </Text>
+                    </Box>
+                  )}
+
+                  <FormControl isRequired>
+                    <FormLabel>Reason</FormLabel>
+                    <Textarea
+                      name="reason"
+                      value={applyFormData.reason}
+                      onChange={handleApplyInputChange}
+                      placeholder="Why is this leave being applied on their behalf?"
+                      rows={3}
+                    />
+                  </FormControl>
+                </>
+              )}
+
+              <Box p={3} bg="green.50" borderRadius="md" w="full">
+                <Text fontSize="sm" fontWeight="bold" color="green.800">
+                  This leave will be recorded as already approved.
+                </Text>
+              </Box>
+            </VStack>
+          </ModalBody>
+          <ModalFooter>
+            <Button variant="ghost" mr={3} onClick={onApplyClose}>
+              Cancel
+            </Button>
+            <Button colorScheme="blue" onClick={handleApplyOnBehalf} isLoading={applyLoading}>
+              Apply & Approve
+            </Button>
+          </ModalFooter>
+        </ModalContent>
+      </Modal>
+
+      {/* Award Extra Leave */}
+      <Modal isOpen={isAwardOpen} onClose={onAwardClose}>
+        <ModalOverlay />
+        <ModalContent>
+          <ModalHeader>
+            Award Leave to {awardReportee?.display_name || awardReportee?.email}
+          </ModalHeader>
+          <ModalCloseButton />
+          <ModalBody>
+            <VStack spacing={4} align="stretch">
+              <Text fontSize="sm" color="gray.500">
+                Adds extra days to this employee's Paid & Sick leave balance for {new Date().getFullYear()}
+                — for example, compensating overtime or weekend work.
+              </Text>
+
+              {awardReporteeBalance && (
+                <Box p={3} bg="blue.50" borderRadius="md" w="full">
+                  <Text fontSize="sm" color="blue.800">
+                    Current Paid & Sick total: {awardReporteeBalance.paid_and_sick} days
+                  </Text>
+                </Box>
+              )}
+
+              <FormControl isRequired>
+                <FormLabel>Days to Award</FormLabel>
+                <NumberInput min={1} value={awardDays} onChange={(_, val) => setAwardDays(isNaN(val) ? 0 : val)}>
+                  <NumberInputField />
+                </NumberInput>
+              </FormControl>
+
+              <FormControl>
+                <FormLabel>Reason</FormLabel>
+                <Textarea
+                  value={awardReason}
+                  onChange={(e) => setAwardReason(e.target.value)}
+                  placeholder="e.g. Compensatory leave for weekend deployment support"
+                  rows={3}
+                />
+              </FormControl>
+            </VStack>
+          </ModalBody>
+          <ModalFooter>
+            <Button variant="ghost" mr={3} onClick={onAwardClose}>
+              Cancel
+            </Button>
+            <Button colorScheme="purple" onClick={handleAwardLeave} isLoading={awardLoading}>
+              Award Leave
             </Button>
           </ModalFooter>
         </ModalContent>

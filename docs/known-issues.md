@@ -3,6 +3,35 @@
 Things worth knowing before you touch related code, roughly in order of how likely they are to
 bite you.
 
+## This repo's migrations folder can silently fall behind the real database
+
+As of 2026-09-04, the linked Supabase project had migration versions `015`–`018` applied
+directly against it (via the Supabase CLI from a *different* working copy, in a separate,
+concurrent session building a policy-acknowledgment/e-signature feature and PWA push
+notifications) that were never committed to this repo — `portal-app/supabase/migrations/`
+jumped straight from `014` to a locally-authored `015` with completely unrelated content, which
+collided by version number with the real, already-applied remote `015`.
+
+**Symptom:** `supabase migration list` shows a version as matched on both "Local" and "Remote"
+columns even though the actual SQL differs — the match is by version number only, not content.
+A `supabase db push` in that state can silently no-op on your migration (Supabase thinks that
+version is already applied) rather than error.
+
+**What was done about it:** the colliding local file was renumbered to the next free version
+(`019`) after confirming — via `supabase db dump --schema public` (needs Docker running; this
+project doesn't otherwise use Docker) — that the unknown remote tables
+(`policies`, `policy_sets`, `policy_assignments`, `policy_signatures`, `employee_signatures`,
+`push_subscriptions`, `events_unified`) didn't touch anything this app's code depends on, then
+`supabase migration repair --status reverted 015 016 017 018` (bookkeeping-only, does not drop
+tables) reconciled the tracking table so `019` could be pushed cleanly.
+
+**What's still true:** this repo has no migration files for versions 015–018, but the linked
+Supabase project has real tables from them. If you add a new migration, number it `020` or
+higher — don't reuse 015–018. And if you're touching anything HR/document/notification-adjacent,
+check the live schema (`supabase db dump`) rather than assuming this repo's migration files are
+the complete picture, until those files get pulled into this repo from wherever they were
+authored.
+
 ## Build artifacts accumulate at the repo root
 
 `.github/workflows/deploy.yml` runs `git add index.html assets/` after every build, but never
